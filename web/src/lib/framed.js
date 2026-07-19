@@ -60,6 +60,26 @@ function trustedHostOrigins() {
   set.delete('') // never trust an empty origin
   return set
 }
+// Best host origin to post UP to (the yQuran shell). Prefer the referrer's
+// origin when it's a trusted host, else an explicitly configured host, else the
+// canonical production origin. Used as the postMessage targetOrigin so the
+// message is only ever delivered to the real shell.
+export function shellHostOrigin() {
+  const trusted = trustedHostOrigins()
+  const ref = originOf(typeof document !== 'undefined' ? document.referrer : '')
+  if (ref && trusted.has(ref)) return ref
+  const explicit = originOf(String(import.meta.env.VITE_JOOW_HOST_ORIGIN || '').trim())
+  return explicit || 'https://yquran.com'
+}
+
+// Post a message UP to the yQuran shell, origin-pinned. No-op (returns false)
+// when standalone. Shared by the share + minimize affordances.
+export function postToShell(message) {
+  if (!isFramed() || typeof window === 'undefined') return false
+  try { window.parent.postMessage(message, shellHostOrigin()); return true }
+  catch { return false }
+}
+
 export function initExternalContext() {
   if (!isFramed() || typeof window === 'undefined') return
   const trusted = trustedHostOrigins()

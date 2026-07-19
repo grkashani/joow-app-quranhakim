@@ -1085,3 +1085,6 @@
 .jq-share-report { flex: none; font-weight: 700; font-size: 12px; border-color: var(--jq-accent); color: var(--jq-accent); }
 .jq-share-report:hover { background: var(--jq-accent); color: #fff; }
 .jq-share-report:disabled { opacity: 0.6; }
+
+.jq-drawer-back { color: var(--jq-accent); font-weight: 700; }
+.jq-drawer-back .jq-drawer-row-label { color: inherit; }

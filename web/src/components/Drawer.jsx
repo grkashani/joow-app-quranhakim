@@ -8,7 +8,7 @@ import {
   getReadAnnotations, setReadAnnotations,
 } from '../lib/settings.js'
 import { loadReciters, getReciter, setReciter } from '../lib/data.js'
-import { isFramed, getShellUser, SHELL_USER_EVENT } from '../lib/framed.js'
+import { isFramed, getShellUser, SHELL_USER_EVENT, postToShell } from '../lib/framed.js'
 
 // App language is fixed (English). The reader model settings below are the home
 // of all content choice: ONE meaning language, whether Arabic recitation plays
@@ -75,6 +75,18 @@ export default function Drawer({ open, onClose }) {
               : <span className="jq-avatar jq-drawer-avatar">{(shellUser.name || '').trim().slice(0, 1)}</span>}
             <span className="jq-drawer-user-name">{shellUser.name}</span>
           </div>
+        )}
+
+        {/* Back to yQuran: mirror the shell's floating bubble (its minimize
+            affordance) as a menu row, so members can always leave the reader
+            even when the bubble is hidden/hard to reach. Framed only. */}
+        {framed && (
+          <button
+            className="jq-drawer-row jq-drawer-back"
+            onClick={() => { postToShell({ type: 'joow:external-minimize' }); onClose() }}
+          >
+            <span className="jq-drawer-row-label">‹ {t('backToYquran')}</span>
+          </button>
         )}
 
         {/* Theme: shown EVERYWHERE, including framed. The interim external
