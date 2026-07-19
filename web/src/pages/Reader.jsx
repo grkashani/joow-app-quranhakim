@@ -4,6 +4,14 @@ import { loadSurah, recitationAudioUrl, tafsirAudioUrl } from '../lib/data.js'
 import { getDedicatedTafsir } from '../lib/tafsir.js'
 import { getCached, setCached, getServerTranscript } from '../lib/transcribe.js'
 import { getTtsUrl } from '../lib/tts.js'
+
+// Strip ElevenLabs [audio-event] tags (transcription artifacts like [coughs],
+// [laughs]) from DISPLAYED tafsir text. They stay in the stored text so the TTS
+// voice can still perform them — only the on-screen text is cleaned.
+const stripEventTags = (s) => String(s || '')
+  .replace(/\[(?:coughs?|laughs?|laughter|chuckles?|sighs?|clears throat|throat clearing|pause|silence|music|applause|breath(?:es|ing)?|inhales?|exhales?|sniffs?|gasps?|hmm+|uh+|um+|er+)\]/gi, '')
+  .replace(/\s{2,}/g, ' ')
+  .trim()
 import { getMeaningUrl, getShortTafsirUrl } from '../lib/meaning.js'
 import { fetchCommentCounts } from '../lib/comments.js'
 import Comments from '../components/Comments.jsx'
@@ -364,7 +372,7 @@ export default function Reader() {
                   {!tx ? (
                     <div className="jq-loading">{t('loading')}</div>
                   ) : tx.text ? (
-                    <p className="jq-tafsir-text" dir={mDir}>{tx.text}</p>
+                    <p className="jq-tafsir-text" dir={mDir}>{stripEventTags(tx.text)}</p>
                   ) : (
                     <div className="jq-transcript-empty">
                       <span>{tx.error ? `⚠︎ ${tx.error}` : tx.note || t('noTranscript')}</span>
