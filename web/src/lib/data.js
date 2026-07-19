@@ -91,3 +91,8 @@ export function recitationAudioUrl(surah, ayah) {
 export function tafsirAudioUrl(surah, ayah) {
   return `${AUDIO_BASE}${tafsirPath(surah, ayah)}`
 }
+
+// Short tafsir (خلاصه / summary) — human Persian recording — streamed from the backend.
+export function shortTafsirAudioUrl(surah, ayah) {
+  return `${AUDIO_BASE}/tafsir-short/${pad3(surah)}/${pad3(surah)}_${pad3(ayah)}.mp3`
+}

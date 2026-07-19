@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { loadSurah, recitationAudioUrl, tafsirAudioUrl } from '../lib/data.js'
+import { loadSurah, recitationAudioUrl, tafsirAudioUrl, shortTafsirAudioUrl } from '../lib/data.js'
 import { getDedicatedTafsir } from '../lib/tafsir.js'
 import { getCached, setCached, getServerTranscript } from '../lib/transcribe.js'
 import { getTtsUrl } from '../lib/tts.js'
@@ -156,7 +156,8 @@ export default function Reader() {
   }, [tafsir, meaningLang, surahNum, t])
 
   useEffect(() => {
-    if (!tafsir || !surah || tafsirMode === 'off') return
+    // Only the LONG lecture has a text transcript; short/summary audio has none.
+    if (!tafsir || !surah || tafsirMode !== 'long') return
     for (const a of surah.ayahs) fetchTafsirText(a.n)
   }, [tafsir, surah, tafsirMode, meaningLang, fetchTafsirText])
 
@@ -184,7 +185,9 @@ export default function Reader() {
       if (!tafsir) { const e = new Error('tafsir not ready'); e.status = 503; throw e }
       return getTtsUrl(tafsir, surahNum, n, s.meaningLang)
     }
-    return getShortTafsirUrl(surahNum, n, s.meaningLang) // short (may always 503 for now)
+    // short (خلاصه): fa -> real human summary recording; other langs -> coming-soon/503 path.
+    if (s.meaningLang === 'fa') return shortTafsirAudioUrl(surahNum, n)
+    return getShortTafsirUrl(surahNum, n, s.meaningLang)
   }, [surahNum, tafsir])
 
   const stop = useCallback(() => {
@@ -320,7 +323,7 @@ export default function Reader() {
           const isCur = cursor?.n === a.n
           const readKind = isCur ? cursor.kind : null
           const meaning = meaningOf(a, meaningLang)
-          const tx = tafsirMode !== 'off' ? txOf(a.n) : null
+          const tx = tafsirMode === 'long' ? txOf(a.n) : null
           // Tapping the card starts playback FROM this ayah with current settings.
           return (
             <li
@@ -362,8 +365,9 @@ export default function Reader() {
                 </p>
               )}
 
-              {/* Tafsir text for this ayah (fa lecture text, or its translation). */}
-              {tafsirMode !== 'off' && (
+              {/* Tafsir text for this ayah (fa lecture text, or its translation).
+                  Only the LONG lecture has a transcript; short/summary audio has none. */}
+              {tafsirMode === 'long' && (
                 <div
                   ref={readKind === 'tafsir' ? activeRef : null}
                   className={`jq-tafsir-panel${readKind === 'tafsir' ? ' jq-reading' : ''}`}
