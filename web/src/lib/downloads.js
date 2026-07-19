@@ -4,7 +4,9 @@
 import { loadSurahIndex, AUDIO_BASE } from './data.js'
 import { recitationPath, tafsirPath, recitationAudioUrl, tafsirAudioUrl } from './data.js'
 
-const CACHE = 'jq-audio-v1'
+// MUST match public/sw.js CACHE — the SW purges every other cache version on
+// activate, so a mismatch here would delete/hide the user's downloads.
+const CACHE = 'jq-audio-v2'
 const supported = typeof caches !== 'undefined'
 
 async function cache() { return caches.open(CACHE) }
@@ -73,7 +75,7 @@ export async function downloadAll(onProgress, signal) {
   for (const s of index) for (let v = 1; v <= s.ttlVer; v++) files.push(recitationPath(s.num, v), tafsirPath(s.num, v))
   try {
     const m = await (await fetch(`${AUDIO_BASE}/api/manifest`)).json()
-    files.push(...(m.transcripts || []), ...(m.tts || []))
+    files.push(...(m.transcripts || []), ...(m.tts || []), ...(m.meaning || []))
   } catch { /* manifest unreachable -> audio-only */ }
   const c = await cache()
   let done = 0, failed = 0

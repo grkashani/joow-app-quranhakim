@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { loadSurahIndex, loadReciters } from '../lib/data.js'
 import { downloadedSet, downloadSurah, deleteSurah, deleteAll, estimateStorage, startDownloadAll, cancelDownloadAll, getAllProgress, subscribeAll } from '../lib/downloads.js'
+import { exportSurahAll } from '../lib/exportPack.js'
 import { useI18n } from '../lib/i18n.jsx'
 
 const fmt = (b) => (b > 1e9 ? (b / 1e9).toFixed(1) + ' GB' : (b / 1e6).toFixed(0) + ' MB')
@@ -12,6 +13,7 @@ export default function Downloads() {
   const [done, setDone] = useState(new Set())
   const [storage, setStorage] = useState({ usage: 0, quota: 0 })
   const [progress, setProgress] = useState(null) // {surah, pct}
+  const [sharing, setSharing] = useState(null)   // surah num being exported
   // Global download-all progress: initial value re-attaches to a run already in
   // flight (started earlier, on another page, or auto-resumed after a reload).
   const [allProg, setAllProg] = useState(getAllProgress())
@@ -46,6 +48,17 @@ export default function Downloads() {
   async function handleDelete(s) {
     await deleteSurah(type, s.num, s.ttlVer)
     refresh()
+  }
+
+  // Export EVERYTHING the server holds for this surah — AI audio + word timings
+  // in every language, transcripts, source recordings, recitation, text — as one
+  // ZIP (server-built, /api/export). Native share sheet on phones, streamed
+  // download elsewhere.
+  async function handleShare(s) {
+    setSharing(s.num)
+    try { await exportSurahAll(s.num) }
+    catch (e) { console.warn('[downloads] export failed', e) }
+    setSharing(null)
   }
 
   function handleDownloadAll() {
@@ -110,7 +123,13 @@ export default function Downloads() {
               {active ? (
                 <span className="jq-dl-pct">{progress.pct}%</span>
               ) : isDone ? (
-                <button className="jq-chip jq-danger-chip" onClick={() => handleDelete(s)}>{t('delete')}</button>
+                <>
+                  {/* Share/save appears ONLY once the pack is downloaded from the server. */}
+                  <button className="jq-chip" disabled={sharing === s.num} onClick={() => handleShare(s)}>
+                    {sharing === s.num ? '…' : `↗ ${t('savePack')}`}
+                  </button>
+                  <button className="jq-chip jq-danger-chip" onClick={() => handleDelete(s)}>{t('delete')}</button>
+                </>
               ) : (
                 <button className="jq-chip active" onClick={() => handleDownload(s)}>{t('download')}</button>
               )}

@@ -23,6 +23,7 @@
     ]
   },
   "dependencies": {
+    "@joow/sdk": "file:./vendor/joow-sdk",
     "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",

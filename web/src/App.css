@@ -31,6 +31,12 @@
   font-size: 13px;
   opacity: 0.9;
 }
+.jq-hero-ver {
+  margin-top: 6px;
+  font-size: 10px;
+  opacity: 0.65;
+  letter-spacing: 0.03em;
+}
 
 .jq-search {
   margin: 16px 0;
@@ -341,6 +347,9 @@
   font-weight: 700;
   font-size: 12px;
   white-space: nowrap;
+  /* Bidi-isolate the "(6)" marker so surrounding RTL/LTR karaoke spans can never
+     reorder its parentheses (was rendering as ")6(" after a language switch). */
+  unicode-bidi: isolate;
 }
 /* Translations are centered like the Arabic; dir attributes keep Persian flowing
    right-to-left and English left-to-right within the centered block. */
@@ -379,6 +388,43 @@
    clip at the narrow phone widths where the reader lives. */
 .jq-ar, .jq-meaning, .jq-tafsir-text { overflow-wrap: break-word; }
 
+/* ---------- Karaoke word highlight ---------- */
+/* Every spoken word of the ACTIVE block is a tappable span. Base padding/margin
+   cancel out (net-zero width) so promoting a word to .jq-kw only swaps colours —
+   it never reflows the line. The rAF sync loop toggles the classes directly. */
+.jq-w {
+  cursor: pointer;
+  border-radius: 5px;
+  padding: 1px 3px;
+  margin: 0 -3px;
+  transition: background-color 0.12s ease, color 0.12s ease, opacity 0.2s ease;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* The word being spoken right now: strong accent chip. */
+.jq-kw {
+  background: var(--jq-accent);
+  color: #fff;
+}
+/* Words already read: gently dimmed so the eye rides the leading edge. */
+.jq-read { opacity: 0.5; }
+@media (hover: hover) {
+  .jq-w:hover { background: var(--jq-accent-soft); }
+  .jq-kw:hover { background: var(--jq-accent); }
+}
+
+/* ---------- Focus mode ---------- */
+/* While reading, dim every ayah that isn't the active one so a long tafsir can't
+   swallow the reader's place. The active ayah (.playing) stays full-opacity. */
+.jq-reader.jq-focus .jq-ayah { transition: opacity 0.35s ease; }
+.jq-reader.jq-focus .jq-ayah:not(.playing) { opacity: 0.38; }
+.jq-reader.jq-focus .jq-basmala:not(.playing) { opacity: 0.38; transition: opacity 0.35s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .jq-w,
+  .jq-reader.jq-focus .jq-ayah,
+  .jq-reader.jq-focus .jq-basmala { transition: none; }
+}
+
 .jq-surah-nav {
   display: flex;
   justify-content: space-between;
@@ -403,8 +449,9 @@
 .jq-dl-all-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
 .jq-dl-all > .jq-chip { align-self: flex-start; }
 
-/* ============ Compact player bar (one row; seeking lives on the vertical rail) ============ */
-.jq-reader.has-player { padding-bottom: 120px; }
+/* ============ Bottom transport bar (scrubber row + transport row) ============ */
+/* Taller than the old one-row bar, so reserve more space below the last ayah. */
+.jq-reader.has-player { padding-bottom: 168px; }
 .jq-player {
   position: fixed;
   left: 0;
@@ -416,41 +463,73 @@
   box-shadow: 0 -6px 18px rgba(17, 24, 39, 0.08);
 }
 
-.jq-player-row {
+/* --- scrubber row: current time · draggable range · total time --- */
+.jq-pl-scrub {
   display: flex;
   align-items: center;
   gap: 10px;
   max-width: 720px;
   margin: 0 auto;
-  padding: 8px 12px 10px;
+  padding: 8px 14px 0;
 }
-.jq-player-toggle {
+.jq-pl-time {
   flex: none;
-  width: 30px;
-  height: 30px;
+  min-width: 38px;
+  font-size: 12px;
+  color: var(--joow-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.jq-pl-range {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--jq-accent); /* fills the track + colours the thumb; RTL-aware */
+  background: transparent;
+}
+.jq-pl-range:disabled { cursor: default; opacity: 0.5; }
+
+/* --- transport row: ⏮ ⏪ ⏯ ⏩ ⏭ · title · speed · ✕ --- */
+.jq-pl-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2px 10px 10px;
+}
+.jq-pl-btn {
+  flex: none;
+  min-width: 36px;
+  height: 34px;
   border: none;
   background: none;
   color: var(--jq-accent);
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
-  padding: 0;
+  padding: 0 4px;
+  border-radius: 8px;
 }
-.jq-player-title {
+.jq-pl-btn:hover { background: var(--jq-accent-soft); }
+.jq-pl-btn:disabled { color: var(--joow-muted, #9aa3b2); opacity: 0.45; cursor: default; background: none; }
+.jq-pl-play { font-size: 17px; font-weight: 700; }
+.jq-pl-title {
   flex: 1 1 auto;
-  font-size: 14px;
+  min-width: 0;
+  font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 0 6px;
+  text-align: center;
+  /* The bar is fixed LTR in every language; only the title TEXT may be RTL. */
+  unicode-bidi: plaintext;
 }
-.jq-player-time {
-  flex: none;
-  font-size: 13px;
-  color: var(--joow-muted, #6b7280);
-  font-variant-numeric: tabular-nums;
-}
-.jq-player-speed {
+.jq-pl-speed {
   flex: none;
   border: none;
   background: none;
@@ -462,16 +541,16 @@
   cursor: pointer;
   font-variant-numeric: tabular-nums;
 }
-.jq-player-x {
+.jq-pl-x {
   flex: none;
   border: none;
   background: none;
   color: var(--joow-muted, #6b7280);
   font-size: 15px;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px 6px;
 }
-.jq-player-x:hover { color: var(--joow-text, #111827); }
+.jq-pl-x:hover { color: var(--joow-text, #111827); }
 
 .jq-loading,
 .jq-error,
@@ -693,6 +772,14 @@
 .jq-drawer.open { transform: translateX(0); visibility: visible; transition: transform 0.25s ease; }
 .jq-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .jq-drawer-title { font-size: 18px; font-weight: 800; }
+/* Signed-in member header (framed): avatar + name at the top of the menu. */
+.jq-drawer-user {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; margin-bottom: 12px; border-radius: 12px;
+  background: var(--jq-surface-2, rgba(127,127,127,0.08));
+}
+.jq-drawer-avatar, .jq-avatar-img.jq-drawer-avatar { width: 40px; height: 40px; font-size: 17px; flex: none; }
+.jq-drawer-user-name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jq-drawer-row {
   display: flex; justify-content: space-between; align-items: center;
   width: 100%; margin: 6px 0; padding: 13px 14px; cursor: pointer; color: inherit;
@@ -949,3 +1036,52 @@
   .jq-ayah { padding-left: 12px; padding-right: 12px; }
   .jq-basmala { padding-left: 10px; padding-right: 10px; }
 }
+
+/* Karaoke follow button: quiet while following; accent + gentle pulse once the
+   user has scrolled away, inviting a one-tap return to the reading. */
+.jq-pl-follow { font-size: 15px; }
+.jq-pl-follow.off {
+  color: var(--jq-accent);
+  animation: jq-follow-pulse 1.6s ease-in-out infinite;
+}
+@keyframes jq-follow-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.18); opacity: 0.72; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jq-pl-follow.off { animation: none; }
+}
+
+/* ---------- Profile: reading insights ---------- */
+.jq-insights { display: grid; gap: 14px; }
+.jq-insight-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.jq-insight-stat {
+  background: var(--joow-surface, #fff);
+  border: 1px solid var(--joow-border, #e5e7eb);
+  border-radius: 14px;
+  padding: 10px 6px;
+  text-align: center;
+}
+.jq-insight-num { font-size: 17px; font-weight: 800; color: var(--jq-accent); }
+.jq-insight-label { font-size: 10.5px; color: var(--joow-muted, #6b7280); margin-top: 2px; }
+.jq-insight-sub { font-size: 12px; font-weight: 700; color: var(--joow-muted, #6b7280); margin-bottom: 6px; }
+.jq-ayah-heat { display: flex; flex-wrap: wrap; gap: 6px; }
+.jq-heat-cell {
+  min-width: 44px; padding: 6px 4px; border-radius: 10px; text-align: center;
+  background: var(--jq-accent); color: #fff;
+}
+.jq-heat-cell.empty { background: var(--joow-surface-soft, #f3f4f6); color: var(--joow-muted, #9ca3af); border: 1px dashed var(--joow-border, #e5e7eb); }
+.jq-heat-num { display: block; font-size: 11px; font-weight: 800; }
+.jq-heat-count { display: block; font-size: 10px; opacity: 0.9; }
+.jq-hour-bars { display: flex; align-items: flex-end; gap: 2px; height: 44px; }
+.jq-hour-bar { flex: 1 1 0; min-width: 3px; background: var(--jq-accent); border-radius: 2px 2px 0 0; opacity: 0.85; }
+.jq-hour-scale { display: flex; justify-content: space-between; font-size: 9px; color: var(--joow-muted, #9ca3af); margin-top: 3px; }
+
+.jq-comment-as { font-size: 12px; color: var(--joow-muted, #6b7280); }
+.jq-comment-as b { color: var(--jq-accent); font-weight: 700; }
+
+.jq-insights-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.jq-insights-head .jq-section-title { margin: 0; }
+.jq-share-report { flex: none; font-weight: 700; font-size: 12px; border-color: var(--jq-accent); color: var(--jq-accent); }
+.jq-share-report:hover { background: var(--jq-accent); color: #fff; }
+.jq-share-report:disabled { opacity: 0.6; }

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { isFramed, SHELL_APPEARANCE_EVENT } from './framed.js'
 
 // Language catalog for the picker. `dir` drives RTL/LTR. Languages without a full
 // translation fall back to English at render time.
@@ -86,6 +87,23 @@ export const EN = {
   settings: 'Settings',
   language: 'Transcript language',
   share: 'Share app',
+  savePack: 'Save',
+  followReading: 'Follow the reading',
+  insightsTitle: 'Your reading insights',
+  insightListening: 'listening',
+  insightListens: 'plays',
+  insightAyahs: 'ayahs heard',
+  insightReading: 'reading',
+  insightCoverage: 'Ayah coverage',
+  insightWhen: 'When you listen',
+  commentingAs: 'Commenting as',
+  insightsEmpty: 'Play any ayah and your listening insights will appear here.',
+  shareReport: 'Share my report',
+  shareSent: '✓ Sent to Social',
+  shareSaved: '✓ Saved',
+  shareDone: '✓ Shared',
+  shareEmpty: 'Nothing to share yet',
+  shareFailed: 'Share failed',
   theme: 'Theme',
   themeLight: 'Light',
   themeDark: 'Dark',
@@ -139,6 +157,13 @@ export const EN = {
   normal: 'Normal',
   fast: 'Fast',
   basmala: 'Bismillah',
+  prevAyah: 'Previous ayah',
+  nextAyah: 'Next ayah',
+  back10: 'Back 10 seconds',
+  forward10: 'Forward 10 seconds',
+  play: 'Play',
+  pause: 'Pause',
+  seek: 'Seek',
   signInApple: 'Sign in with Apple',
   signInGoogle: 'Sign in with Google',
   signInError: 'Sign-in failed. Please try again.',
@@ -206,6 +231,23 @@ export const FA = {
   settings: 'تنظیمات',
   language: 'زبان',
   share: 'اشتراک‌گذاری برنامه',
+  savePack: 'ذخیره',
+  followReading: 'دنبال‌کردن خواندن',
+  insightsTitle: 'گزارش مطالعه شما',
+  insightListening: 'شنیدن',
+  insightListens: 'پخش',
+  insightAyahs: 'آیه شنیده‌شده',
+  insightReading: 'مطالعه',
+  insightCoverage: 'پوشش آیات',
+  insightWhen: 'زمان‌های شنیدن',
+  commentingAs: 'ارسال نظر به‌نام',
+  insightsEmpty: 'با پخش هر آیه، گزارش مطالعه شما اینجا ساخته می‌شود.',
+  shareReport: 'اشتراک گزارش من',
+  shareSent: '✓ در شبکه اجتماعی ارسال شد',
+  shareSaved: '✓ ذخیره شد',
+  shareDone: '✓ به اشتراک گذاشته شد',
+  shareEmpty: 'هنوز چیزی برای اشتراک نیست',
+  shareFailed: 'اشتراک ناموفق بود',
   theme: 'پوسته',
   themeLight: 'روشن',
   themeDark: 'تیره',
@@ -269,16 +311,38 @@ const LangCtx = createContext(null)
 
 export function LanguageProvider({ children }) {
   // `lang` is the CONTENT language (translations, transcripts, spoken audio).
-  // The application shell itself is ALWAYS English + LTR — picking فارسی changes
-  // what you read/hear, never the UI language or layout direction.
+  // STANDALONE: the application shell itself is ALWAYS English + LTR — picking
+  // فارسی changes what you read/hear, never the UI language or layout direction.
+  // FRAMED: the JooW shell OWNS appearance, so `shellDir` (rtl|ltr) mirrors the
+  // host's direction and the reader follows the host content language.
   const [lang, setLang] = useState(() => localStorage.getItem('jq.lang') || 'en')
+  const [shellDir, setShellDir] = useState(null)
   useEffect(() => {
     localStorage.setItem('jq.lang', lang)
-    document.documentElement.setAttribute('lang', 'en')
-    document.documentElement.setAttribute('dir', 'ltr')
-  }, [lang])
+    if (shellDir) {
+      // Shell-owned appearance: mirror the host language + direction.
+      document.documentElement.setAttribute('lang', lang)
+      document.documentElement.setAttribute('dir', shellDir)
+    } else {
+      // Standalone: fixed English + LTR chrome (unchanged behaviour).
+      document.documentElement.setAttribute('lang', 'en')
+      document.documentElement.setAttribute('dir', 'ltr')
+    }
+  }, [lang, shellDir])
+  // While framed, follow the SHELL-owned appearance (lang + dir) that shell.js
+  // re-broadcasts. Ignored entirely when standalone.
+  useEffect(() => {
+    if (!isFramed()) return
+    const onShell = (e) => {
+      const d = e.detail || {}
+      if (d.lang) setLang(d.lang)
+      if (d.dir === 'rtl' || d.dir === 'ltr') setShellDir(d.dir)
+    }
+    window.addEventListener(SHELL_APPEARANCE_EVENT, onShell)
+    return () => window.removeEventListener(SHELL_APPEARANCE_EVENT, onShell)
+  }, [])
   const t = (key) => EN[key] || key // UI strings: always English
-  return <LangCtx.Provider value={{ lang, setLang, t, dir: 'ltr' }}>{children}</LangCtx.Provider>
+  return <LangCtx.Provider value={{ lang, setLang, t, dir: shellDir || 'ltr' }}>{children}</LangCtx.Provider>
 }
 
 export function useI18n() {

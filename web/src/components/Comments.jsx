@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchComments, postComment } from '../lib/comments.js'
 import { useI18n } from '../lib/i18n.jsx'
+import { isFramed, getShellUser, SHELL_USER_EVENT } from '../lib/framed.js'
+import { cachedUser } from '../lib/auth.js'
 
 // Prefer a name the user already typed here; else their profile name (if they set one).
 function initialName() {
@@ -29,6 +31,18 @@ export default function Comments({ surah, ayah = 0, onCount }) {
   const [list, setList] = useState(null) // null = loading
   const [name, setName] = useState(initialName)
   const [text, setText] = useState('')
+  // Known identity: the yQuran shell's member card (framed) or the reader's own
+  // signed-in account (standalone). When present, the name field disappears and
+  // comments attribute automatically.
+  const framed = isFramed()
+  const [shellUser, setShellUserS] = useState(() => getShellUser())
+  useEffect(() => {
+    if (!framed) return
+    const on = (e) => setShellUserS(e.detail || null)
+    window.addEventListener(SHELL_USER_EVENT, on)
+    return () => window.removeEventListener(SHELL_USER_EVENT, on)
+  }, [framed])
+  const knownName = (framed ? shellUser?.name : cachedUser()?.name) || ''
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const taRef = useRef(null)
@@ -49,8 +63,9 @@ export default function Comments({ surah, ayah = 0, onCount }) {
     if (!body || busy) return
     setBusy(true); setErr(null)
     try {
-      const c = await postComment(surah, ayah, name.trim(), body)
-      localStorage.setItem('jq.commentName', name.trim())
+      const postName = (knownName || name).trim()
+      const c = await postComment(surah, ayah, postName, body)
+      if (!knownName) localStorage.setItem('jq.commentName', postName)
       setList((l) => { const next = [...(l || []), c]; onCount?.(next.length); return next })
       setText('')
       taRef.current?.focus()
@@ -83,14 +98,18 @@ export default function Comments({ surah, ayah = 0, onCount }) {
       )}
 
       <form className="jq-comment-form" onSubmit={submit}>
-        <input
-          className="jq-comment-name-input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t('yourName')}
-          maxLength={48}
-          aria-label={t('yourName')}
-        />
+        {knownName ? (
+          <div className="jq-comment-as">{t('commentingAs')} <b>{knownName}</b></div>
+        ) : (
+          <input
+            className="jq-comment-name-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('yourName')}
+            maxLength={48}
+            aria-label={t('yourName')}
+          />
+        )}
         <textarea
           ref={taRef}
           className="jq-comment-input"

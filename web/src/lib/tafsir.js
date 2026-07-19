@@ -21,6 +21,14 @@ export async function getDedicatedTafsir() {
   return list.find((t) => t.id === 'bazargan') || list[0] || null
 }
 
+// The SHORT (خلاصه / summary) companion tafsir. Its human recording is only the
+// STT source — the reader always plays the AI-TTS clip generated from the
+// transcript (same as the long one), so short + long share the same pipeline.
+export async function getDedicatedShortTafsir() {
+  const list = await loadTafsirs()
+  return list.find((t) => t.id === 'bazargan-short') || null
+}
+
 function fill(pattern, surah, ayah) {
   return pattern
     .replaceAll('{c3}', pad3(surah)).replaceAll('{v3}', pad3(ayah))

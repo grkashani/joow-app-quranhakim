@@ -29,6 +29,8 @@ export default function Home() {
       <header className="jq-hero">
         <div className="jq-hero-title">{t('appName')}</div>
         <div className="jq-hero-sub">{t('appTagline')}</div>
+        {/* Build stamp — confirms the device is on the latest deploy. */}
+        <div className="jq-hero-ver" dir="ltr">{__APP_VERSION__}</div>
       </header>
 
       <div className="jq-search">

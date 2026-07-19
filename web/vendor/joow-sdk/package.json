@@ -1,0 +1,17 @@
+{
+  "name": "@joow/sdk",
+  "version": "0.8.0",
+  "description": "Vendored build of @joow/sdk (JooW mini-app boundary SDK) for the Quran Hakim reader.",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  }
+}

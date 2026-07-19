@@ -1,0 +1,83 @@
+# nginx config for the Quran Hakim mini-app container (runs non-root via the
+# entrypoint, which substitutes __JOOW_AUDIO_ORIGIN__ and writes the final conf
+# under /tmp/nginx). Serves the SPA, proxies /api -> the node API, and proxies
+# the heavy media prefixes -> an external origin (audio is never baked in).
+
+worker_processes  auto;
+daemon            off;
+pid               /tmp/nginx/nginx.pid;
+error_log         /dev/stderr warn;
+
+events { worker_connections 1024; }
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    # Non-root writable temp paths (created by the entrypoint).
+    client_body_temp_path /tmp/nginx/client_temp;
+    proxy_temp_path       /tmp/nginx/proxy_temp;
+    fastcgi_temp_path     /tmp/nginx/fastcgi_temp;
+    uwsgi_temp_path       /tmp/nginx/uwsgi_temp;
+    scgi_temp_path        /tmp/nginx/scgi_temp;
+
+    access_log        /dev/stdout;
+    sendfile          on;
+    tcp_nopush        on;
+    keepalive_timeout 65;
+    server_tokens     off;
+    client_max_body_size 12m;
+
+    gzip              on;
+    gzip_types        text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_min_length   1024;
+
+    server {
+        listen      8080;
+        listen      [::]:8080;
+        server_name _;
+
+        root  /app/dist;
+        index index.html;
+
+        # Container liveness — the apphost mount probes /health (base-stripped).
+        location = /health {
+            proxy_pass http://127.0.0.1:8787/health;
+            proxy_set_header Host $host;
+            access_log off;
+        }
+
+        # App API (transcripts, comments, tts, manifest, auth) -> the node API.
+        location /api/ {
+            proxy_pass http://127.0.0.1:8787;
+            proxy_http_version 1.1;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+            proxy_read_timeout 120s;
+        }
+
+        # Heavy media stays on the existing origin and is NEVER baked into the
+        # image. The base-stripped mount forwards these prefixes here; nginx
+        # proxies them to the external audio origin (set at container start).
+        location ~ ^/(recitation|reciters|tafsir|tafsir-short|tafsir-tts|transcripts|meaning-tts)(/|$) {
+            proxy_pass         __JOOW_AUDIO_ORIGIN__;
+            proxy_ssl_server_name on;
+            proxy_set_header   Accept-Encoding "";
+            proxy_read_timeout 120s;
+        }
+
+        # Cache-bust-friendly static assets (Vite emits content-hashed names).
+        location /assets/ {
+            try_files $uri =404;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # SPA static files + client-side routing fallback.
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+}

@@ -1,0 +1,20 @@
+# Build context root = apps/joowquran/ (paths below are relative to it).
+# Keep the context lean: source only. node_modules + dist are rebuilt inside
+# the image; native (Capacitor) projects and source datasets are never needed.
+**/node_modules
+**/.git
+**/.DS_Store
+**/*.log
+
+# Reader: rebuilt in-image; native + alternate builds are huge and unused.
+web/dist
+web/dist-quranner
+web/android
+web/ios
+web/.env.local
+web/.env.capacitor
+
+# Sibling source datasets + docs are not part of the runtime image.
+datas
+docs
+scripts

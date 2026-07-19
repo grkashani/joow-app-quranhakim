@@ -17,6 +17,23 @@
       "engines": { "stt": "elevenlabs", "tts": "elevenlabs", "translate": "claude" },
       "targetLangs": ["en", "ar", "es", "fr", "ur", "id", "ru", "de", "tr", "hi", "bn", "ms", "sw"],
       "enabled": true
+    },
+    {
+      "id": "bazargan-short",
+      "name": "خلاصه پرتوی از قرآن",
+      "nameEn": "Partovi az Quran (Summary)",
+      "author": "عبدالعلی بازرگان",
+      "authorEn": "Abdolali Bazargan",
+      "language": "fa",
+      "kind": "ayah",
+      "source": "app",
+      "coverage": "full",
+      "note": "Short/summary tafsir. Human recording is the STT SOURCE ONLY — never played; the reader always plays the AI-TTS clip generated from the transcript.",
+      "audio": { "pattern": "/tafsir-short/{c3}/{c3}_{v3}.mp3" },
+      "transcript": { "available": false, "lang": "fa", "pattern": "/transcripts/bazargan-short/{c3}/{c3}_{v3}.json" },
+      "engines": { "stt": "elevenlabs", "tts": "elevenlabs", "translate": "claude" },
+      "targetLangs": ["en", "ar", "es", "fr", "ur", "id", "ru", "de", "tr", "hi", "bn", "ms", "sw"],
+      "enabled": true
     }
   ],
   "_schema": {

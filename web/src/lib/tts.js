@@ -9,13 +9,24 @@ const pad3 = (n) => String(n).padStart(3, '0')
 export async function getTtsUrl(tafsir, s, a, lang) {
   const l = lang || tafsir.transcript?.lang || tafsir.language
   const staticUrl = `${AUDIO_BASE}/tafsir-tts/${tafsir.id}/${l}/${pad3(s)}/${pad3(s)}_${pad3(a)}.mp3`
-  // Already generated? Play the cached file straight from nginx — no API, no re-synthesis.
+  // Already generated WITH karaoke timings? Gate on the `.words.json` sidecar, not the
+  // mp3: a clip that has audio but no sidecar (pre-word-timing) must be regenerated so
+  // the word-by-word highlight works. The sidecar and mp3 are always written together.
+  // A GET (not HEAD): the service worker only intercepts GETs, so this works offline
+  // from the download cache — and it warms the sidecar cache for the reader.
   try {
-    const h = await fetch(staticUrl, { method: 'HEAD' })
+    const h = await fetch(staticUrl.replace(/\.mp3$/, '.words.json'))
     if (h.ok) return staticUrl
   } catch { /* fall through to generate */ }
   // First time for this clip/lang: generate once; the server persists it for everyone.
-  const r = await fetch(`${AUDIO_BASE}/api/tts-audio?tafsir=${encodeURIComponent(tafsir.id)}&surah=${s}&ayah=${a}&lang=${encodeURIComponent(l)}`)
+  let r
+  try {
+    r = await fetch(`${AUDIO_BASE}/api/tts-audio?tafsir=${encodeURIComponent(tafsir.id)}&surah=${s}&ayah=${a}&lang=${encodeURIComponent(l)}`)
+  } catch (err) {
+    // Network unreachable (offline): treat as "not ready" so the reader skips the
+    // step with its honest note instead of halting the whole read-along.
+    const e = new Error('offline'); e.status = 503; throw e
+  }
   const d = await r.json().catch(() => ({}))
   if (!r.ok || !d.url) { const e = new Error(d.error || `tts ${r.status}`); e.status = r.status; throw e }
   return `${AUDIO_BASE}${d.url}`

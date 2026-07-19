@@ -15,6 +15,9 @@ import crypto from 'node:crypto'
 
 const PORT = Number(process.env.PORT || 8787)
 const EL_KEY = process.env.ELEVENLABS_API_KEY || ''
+// Optional SEPARATE key for exact-meaning TTS only (owner 2026-07-19: burn the
+// stranded Creator-plan credits on surah-2 meaning). Tafsir/STT stay on EL_KEY.
+const EL_KEY_MEANING = process.env.ELEVENLABS_API_KEY_MEANING || ''
 const EL_MODEL = process.env.ELEVENLABS_STT_MODEL || 'scribe_v2'
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || ''
 const TRANSLATE_MODEL = process.env.TRANSLATE_MODEL || 'claude-haiku-4-5-20251001'
@@ -74,6 +77,11 @@ const CONTRIBUTE_SECRET = (process.env.CONTRIBUTE_SECRET || '').trim()
 // 2–114 from turning into paid ElevenLabs/translation calls the moment the
 // billing account works again (the "cost bomb").
 const SCOPE_ALL = process.env.ALLOW_ALL_SURAHS === '1'
+// Additional surahs the OWNER has approved for MEANING generation only
+// (comma-separated numbers). Tafsir stays Fatiha-gated regardless.
+const MEANING_SURAHS_EXTRA = new Set(
+  (process.env.MEANING_SURAHS_EXTRA || '').split(',').map((v) => Number(v.trim())).filter((n) => Number.isInteger(n) && n >= 1 && n <= 114)
+)
 const fileExists = async (p) => { try { await fs.access(p); return true } catch { return false } }
 const localAudioPath = (tafsir, s, a) => path.join(SRV, fill(tafsir.audio.pattern, s, a).replace(/^\//, ''))
 
@@ -102,9 +110,15 @@ async function elevenLabsSTT(audioPath, langCode) {
           s: Math.round((w.start || 0) * 100) / 100,
           e: Math.round((w.end || 0) * 100) / 100,
           ...(w.type === 'audio_event' ? { ev: 1 } : {}),
+          ...(typeof w.logprob === 'number' ? { lp: Math.round(w.logprob * 1000) / 1000 } : {}),
         }))
     : undefined
-  return { text: d.text || '', words }
+  // v2 capture: keep the detection metadata the paid call already returned.
+  return {
+    text: d.text || '', words,
+    languageCode: d.language_code || null,
+    languageProbability: typeof d.language_probability === 'number' ? d.language_probability : null,
+  }
 }
 
 async function translate(text, from, to) {
@@ -139,7 +153,11 @@ async function getOrCreate(tafsir, s, a, lang) {
     let orig = await readCache(origPath)
     if (!orig) {
       const r = await elevenLabsSTT(localAudioPath(tafsir, s, a), origLang)
-      orig = { text: r.text, lang: origLang, source: 'elevenlabs-scribe', model: EL_MODEL, createdAt: new Date().toISOString(), ...(r.words ? { words: r.words } : {}) }
+      orig = {
+        text: r.text, lang: origLang, source: 'elevenlabs-scribe', model: EL_MODEL, createdAt: new Date().toISOString(),
+        ...(r.words ? { words: r.words } : {}),
+        ...(r.languageCode ? { detectedLang: r.languageCode, detectedProb: r.languageProbability } : {}),
+      }
       await writeCache(origPath, orig)
     }
     if (lang === origLang) return orig
@@ -169,6 +187,13 @@ async function ttsElevenLabs(text, langCode) {
   return bytes
 }
 const ttsPath = (id, lang, s, a) => path.join(TTS_DIR, id, lang, pad3(s), `${pad3(s)}_${pad3(a)}.mp3`)
+
+// A synthesized clip is only "ready" when BOTH the mp3 AND its word-timing sidecar
+// (.words.json) exist. Clips made before the karaoke word-timing feature have the
+// mp3 but no sidecar; treating those as a cache miss lets them self-heal (regenerate
+// WITH timings) instead of serving un-highlightable audio forever.
+const wordsSidecar = (abs) => abs.replace(/\.mp3$/, '.words.json')
+const clipReady = async (abs) => (await fileExists(abs)) && (await fileExists(wordsSidecar(abs)))
 
 // ElevenLabs caps a single TTS request at 5000 chars. Split long tafsir text into
 // sentence-aligned chunks; the concatenated MP3 frames play back as one clip.
@@ -202,17 +227,73 @@ async function ttsSynthesize(text, lang) {
 // ElevenLabs /with-timestamps returns per-character start/end seconds; we group
 // them into words. Costs the same as normal TTS. A words[] sidecar is saved next
 // to the mp3 so the reader can highlight the spoken word + auto-scroll.
-async function ttsElevenLabsTimed(text, langCode) {
+//
+// v2 CAPTURE (docs/AUDIO-ASSET-DESIGN.md): everything the paid call returns is
+// KEPT — both raw alignments (`alignment` = timings against the input text,
+// `normalized_alignment` = against what was actually spoken), plus the
+// `request-id` and `character-cost` response headers. The synthesizers below
+// assemble these into a per-clip `.gen.json` provenance sidecar, and every call
+// is appended to the usage ledger — so future features derive from stored data
+// instead of re-paying, and "what did this cost" is a query.
+const TTS_VOICE_SETTINGS = { stability: 0.5, similarity_boost: 0.75 }
+const USAGE_LEDGER = process.env.USAGE_LEDGER || '/srv/usage/ledger.ndjson'
+// Hard daily spend ceiling in credits (0/unset = no cap). When the day's ledger
+// total reaches it, synthesis refuses with a 503 — the reader skips with its
+// honest note instead of silently spending (design §G).
+const EL_DAILY_BUDGET = Number(process.env.EL_DAILY_BUDGET || 0)
+async function ledger(entry) {
+  try {
+    await fs.mkdir(path.dirname(USAGE_LEDGER), { recursive: true })
+    await fs.appendFile(USAGE_LEDGER, JSON.stringify({ ts: new Date().toISOString(), ...entry }) + '\n')
+  } catch { /* ledger is best-effort — never blocks synthesis */ }
+}
+async function readLedger() {
+  try {
+    return (await fs.readFile(USAGE_LEDGER, 'utf8')).split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
+  } catch { return [] }
+}
+let _spendCache = { at: 0, today: 0 }
+async function todayCredits() {
+  if (Date.now() - _spendCache.at < 30_000) return _spendCache.today
+  const day = new Date().toISOString().slice(0, 10)
+  const today = (await readLedger()).filter((e) => (e.ts || '').startsWith(day)).reduce((t, e) => t + (e.characterCost || e.chars || 0), 0)
+  _spendCache = { at: Date.now(), today }
+  return today
+}
+async function assertBudget() {
+  if (!EL_DAILY_BUDGET) return
+  if ((await todayCredits()) >= EL_DAILY_BUDGET) {
+    const err = new Error(`daily ElevenLabs budget (${EL_DAILY_BUDGET} credits) reached`)
+    err.statusCode = 503
+    throw err
+  }
+}
+const sha256 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex')
+const packAlignment = (a) => (a && a.characters ? {
+  characters: a.characters,
+  starts: a.character_start_times_seconds,
+  ends: a.character_end_times_seconds,
+} : null)
+async function ttsElevenLabsTimed(text, langCode, apiKey = EL_KEY) {
+  await assertBudget()
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceFor(langCode))}/with-timestamps?output_format=${EL_TTS_FMT}`
-  const body = { text, model_id: EL_TTS_MODEL, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }
+  const body = { text, model_id: EL_TTS_MODEL, voice_settings: TTS_VOICE_SETTINGS }
   if (langCode) body.language_code = langCode
-  const res = await fetch(url, { method: 'POST', headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
+  const res = await fetch(url, { method: 'POST', headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
   if (!res.ok) throw new Error(`ElevenLabs TTS(ts) ${res.status}: ${(await res.text()).slice(0, 300)}`)
+  const requestId = res.headers.get('request-id') || null
+  const characterCost = Number(res.headers.get('character-cost')) || null
   const j = await res.json()
   const mp3 = Buffer.from(j.audio_base64 || '', 'base64')
   if (!mp3.length) throw new Error('ElevenLabs TTS(ts) returned empty audio')
   const a = j.alignment || {}
-  return { mp3, chars: a.characters || [], starts: a.character_start_times_seconds || [], ends: a.character_end_times_seconds || [] }
+  await ledger({ kind: 'tts', model: EL_TTS_MODEL, voice: voiceFor(langCode), lang: langCode || null, chars: text.length, characterCost, requestId, key: apiKey === EL_KEY ? 'main' : 'meaning' })
+  return {
+    mp3,
+    chars: a.characters || [], starts: a.character_start_times_seconds || [], ends: a.character_end_times_seconds || [],
+    alignment: packAlignment(j.alignment), normalizedAlignment: packAlignment(j.normalized_alignment),
+    requestId, characterCost,
+  }
 }
 // Group per-character alignment into words [{ w, s, e }] (seconds), shifted by `offset`.
 function charsToWords(chars, starts, ends, offset = 0) {
@@ -228,17 +309,36 @@ function charsToWords(chars, starts, ends, offset = 0) {
 }
 // TTS + word timings. Concatenates chunk audio and offsets each chunk's word
 // times by the running audio duration so timings stay aligned across chunks.
-async function ttsSynthesizeTimed(text, lang) {
+// Returns `gen` — the full v2 provenance (chunk map with raw alignments,
+// request ids, per-chunk credit cost) for the caller to persist as .gen.json.
+async function ttsSynthesizeTimed(text, lang, apiKey = EL_KEY) {
   const chunks = chunkForTts(text)
   if (!chunks.length) throw new Error('no transcript text to synthesize')
-  const parts = []; let words = []; let offset = 0
+  const parts = []; let words = []; let offset = 0; let byteOffset = 0
+  const chunkMeta = []
   for (const c of chunks) {
-    const r = await ttsElevenLabsTimed(c, lang)
+    const r = await ttsElevenLabsTimed(c, lang, apiKey)
     parts.push(r.mp3)
     words = words.concat(charsToWords(r.chars, r.starts, r.ends, offset))
+    chunkMeta.push({
+      text: c, chars: c.length,
+      timeOffsetSec: +offset.toFixed(3), byteOffset, bytes: r.mp3.length,
+      requestId: r.requestId, characterCost: r.characterCost,
+      alignment: r.alignment, normalizedAlignment: r.normalizedAlignment,
+    })
+    byteOffset += r.mp3.length
     offset += (r.ends.length ? r.ends[r.ends.length - 1] : 0)
   }
-  return { mp3: Buffer.concat(parts), words, dur: +offset.toFixed(3) }
+  const gen = {
+    v: 2, capture: 'full',
+    text, textSha256: sha256(text), lang: lang || null,
+    voiceId: voiceFor(lang), modelId: EL_TTS_MODEL,
+    voiceSettings: TTS_VOICE_SETTINGS, outputFormat: EL_TTS_FMT,
+    createdAt: new Date().toISOString(),
+    credits: chunkMeta.reduce((t, c) => t + (c.characterCost || c.chars), 0),
+    chunks: chunkMeta,
+  }
+  return { mp3: Buffer.concat(parts), words, dur: +offset.toFixed(3), gen }
 }
 
 // Per-sentence clip path: one MP3 per transcript segment (same tree as full-ayah TTS).
@@ -251,22 +351,26 @@ const ttsSegPath = (id, lang, s, a, idx) => path.join(TTS_DIR, id, lang, pad3(s)
 async function getOrCreateSegTts(tafsir, s, a, lang, idx) {
   const abs = ttsSegPath(tafsir.id, lang, s, a, idx)
   const rel = `/tafsir-tts/${tafsir.id}/${lang}/${pad3(s)}/${pad3(s)}_${pad3(a)}.seg${idx}.mp3`
-  try { await fs.access(abs); return { ok: true, url: rel, cached: true } } catch { /* generate */ }
+  if (await clipReady(abs)) return { ok: true, url: rel, cached: true }
   return once('tts-seg:' + abs, async () => {
     const tr = await readCache(cachePath(tafsir.id, lang, s, a))
     const seg = Array.isArray(tr?.segments) ? tr.segments[idx] : undefined
     const text = String(seg?.text || '').trim()
     if (!text) { const err = new Error(`no segment text at idx ${idx} for ${tafsir.id}/${lang}/${s}:${a}`); err.statusCode = 400; throw err }
-    let mp3
-    try { mp3 = await ttsSynthesize(text, lang) }
+    let mp3, words, dur, gen, said = text
+    try { ({ mp3, words, dur, gen } = await ttsSynthesizeTimed(text, lang)) }
     catch (e) {
       const stripped = text.replace(/\[[^\][]*\]/g, ' ').replace(/\s+/g, ' ').trim()
       if (stripped === text || !stripped) throw e
-      mp3 = await ttsSynthesize(stripped, lang) // retry without [audio-tags]
+      ;({ mp3, words, dur, gen } = await ttsSynthesizeTimed(stripped, lang)); said = stripped // retry without [audio-tags]
     }
     await fs.mkdir(path.dirname(abs), { recursive: true })
     const tmp = `${abs}.tmp-${process.pid}`
     await fs.writeFile(tmp, mp3); await fs.rename(tmp, abs) // atomic
+    // Word-timing sidecar for live karaoke highlight (same path, .words.json).
+    await fs.writeFile(abs.replace(/\.mp3$/, '.words.json'), JSON.stringify({ words, dur, text: said })).catch(() => {})
+    // v2 provenance sidecar (raw alignments + request ids + credits).
+    await fs.writeFile(abs.replace(/\.mp3$/, '.gen.json'), JSON.stringify({ ...gen, kind: 'tafsir-seg', tafsir: tafsir.id, surah: s, ayah: a, segIdx: idx })).catch(() => {})
     return { ok: true, url: rel, cached: false }
   })
 }
@@ -275,7 +379,7 @@ async function getOrCreateSegTts(tafsir, s, a, lang, idx) {
 async function getOrCreateTts(tafsir, s, a, lang) {
   const abs = ttsPath(tafsir.id, lang, s, a)
   const rel = `/tafsir-tts/${tafsir.id}/${lang}/${pad3(s)}/${pad3(s)}_${pad3(a)}.mp3`
-  try { await fs.access(abs); return { url: rel, cached: true } } catch { /* generate */ }
+  if (await clipReady(abs)) return { url: rel, cached: true }
   // COST GUARD: sentence clips are the single canonical synthesis (each language's
   // text is paid for exactly once). Full-ayah synthesis would duplicate that cost,
   // so it is disabled unless explicitly re-enabled.
@@ -288,10 +392,14 @@ async function getOrCreateTts(tafsir, s, a, lang) {
     const tr = await getOrCreate(tafsir, s, a, lang)
     const text = (tr?.text || '').trim()
     if (!text) throw new Error('no transcript text to synthesize')
-    const mp3 = await ttsSynthesize(text, lang)
+    const { mp3, words, dur, gen } = await ttsSynthesizeTimed(text, lang)
     await fs.mkdir(path.dirname(abs), { recursive: true })
     const tmp = `${abs}.tmp-${process.pid}`
     await fs.writeFile(tmp, mp3); await fs.rename(tmp, abs) // atomic
+    // Word-timing sidecar for live karaoke highlight (same path, .words.json).
+    await fs.writeFile(abs.replace(/\.mp3$/, '.words.json'), JSON.stringify({ words, dur, text })).catch(() => {})
+    // v2 provenance sidecar (raw alignments + request ids + credits).
+    await fs.writeFile(abs.replace(/\.mp3$/, '.gen.json'), JSON.stringify({ ...gen, kind: 'tafsir', tafsir: tafsir.id, surah: s, ayah: a })).catch(() => {})
     return { url: rel, cached: false }
   })
 }
@@ -320,18 +428,24 @@ async function meaningText(s, a, lang) {
 async function getOrCreateMeaningTts(s, a, lang, ann) {
   const abs = meaningPath(lang, s, a, ann)
   const rel = `/meaning-tts/${lang}/${pad3(s)}/${pad3(s)}_${pad3(a)}${ann ? '' : '.noann'}.mp3`
-  try { await fs.access(abs); return { url: rel, cached: true } } catch { /* generate */ }
+  if (await clipReady(abs)) return { url: rel, cached: true }
   return once('meaning:' + abs, async () => {
     const raw = await meaningText(s, a, lang)
     if (!raw) { const err = new Error(`no meaning text for ${s}:${a}/${lang}`); err.statusCode = 400; throw err }
     const text = ann ? stripAnnChars(raw) : removeAnn(raw)
     if (!text) { const err = new Error(`empty meaning after annotation strip for ${s}:${a}/${lang}`); err.statusCode = 400; throw err }
-    const { mp3, words, dur } = await ttsSynthesizeTimed(text, lang)
+    // The dedicated meaning key applies ONLY to the extra-approved surahs
+    // (owner: "use this api key for only meaning for second surah") — Fatiha
+    // and any SCOPE_ALL work stay on the main key.
+    const key = MEANING_SURAHS_EXTRA.has(s) && EL_KEY_MEANING ? EL_KEY_MEANING : EL_KEY
+    const { mp3, words, dur, gen } = await ttsSynthesizeTimed(text, lang, key)
     await fs.mkdir(path.dirname(abs), { recursive: true })
     const tmp = `${abs}.tmp-${process.pid}`
     await fs.writeFile(tmp, mp3); await fs.rename(tmp, abs) // atomic
     // Word-timing sidecar for live karaoke highlight (same path, .words.json).
     await fs.writeFile(abs.replace(/\.mp3$/, '.words.json'), JSON.stringify({ words, dur, text })).catch(() => {})
+    // v2 provenance sidecar (raw alignments + request ids + credits).
+    await fs.writeFile(abs.replace(/\.mp3$/, '.gen.json'), JSON.stringify({ ...gen, kind: 'meaning', surah: s, ayah: a, ann: !!ann, sourceText: raw })).catch(() => {})
     return { url: rel, cached: false }
   })
 }
@@ -378,6 +492,230 @@ function rateOk(ip) {
 }
 const clientIp = (req) => (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
 
+// ---- User activity log: raw events in, derived reports out ----
+// POST /api/activity  { did, userId?, shellName?, events:[{v,type,ts,tzo,...}] }
+//   Append-only NDJSON, sharded per device per month: /srv/activity/YYYY-MM/<did>.ndjson
+//   PRINCIPLE: store raw events, derive reports later — new reports never need
+//   new ingestion. Payloads are size- and shape-capped; a bad batch is dropped,
+//   never 500s the reader.
+// GET /api/activity/summary?did=…[&surah=N]
+//   Device-scoped aggregates for the Profile insights UI: totals, per-surah
+//   coverage, per-ayah listen counts (for one surah), hour-of-day histogram.
+const ACTIVITY_DIR = process.env.ACTIVITY_DIR || '/srv/activity'
+const ACTIVITY_EVENT_TYPES = new Set(['listen', 'read'])
+const activityDidRe = /^[A-Za-z0-9-]{6,64}$/
+
+function sanitizeActivityEvent(e) {
+  if (!e || typeof e !== 'object') return null
+  if (!ACTIVITY_EVENT_TYPES.has(e.type)) return null
+  const ts = typeof e.ts === 'string' && !Number.isNaN(Date.parse(e.ts)) ? e.ts : null
+  if (!ts) return null
+  const surah = Number(e.surah)
+  if (!validSurah(surah)) return null
+  const out = { v: 1, type: e.type, ts, tzo: Number.isInteger(e.tzo) && Math.abs(e.tzo) <= 900 ? e.tzo : 0, surah }
+  if (e.type === 'listen') {
+    const ayah = Number(e.ayah)
+    if (!validAyah(ayah)) return null
+    out.ayah = ayah
+    out.kind = ['recite', 'meaning', 'tafsir'].includes(e.kind) ? e.kind : 'meaning'
+    out.lang = typeof e.lang === 'string' && cleanLang(e.lang) ? e.lang : 'fa'
+    if (e.mode === 'short' || e.mode === 'long') out.mode = e.mode
+    if (typeof e.reciter === 'string' && /^[a-z0-9_]{2,40}$/.test(e.reciter)) out.reciter = e.reciter
+    out.secs = Math.max(0, Math.min(7200, Number(e.secs) || 0))
+    out.dur = Math.max(0, Math.min(7200, Number(e.dur) || 0))
+    out.done = !!e.done
+    out.speed = Math.max(0.25, Math.min(4, Number(e.speed) || 1))
+  } else {
+    out.secs = Math.max(0, Math.min(86400, Number(e.secs) || 0))
+  }
+  return out
+}
+
+async function appendActivity(did, meta, events) {
+  const month = new Date().toISOString().slice(0, 7)
+  const dir = path.join(ACTIVITY_DIR, month)
+  await fs.mkdir(dir, { recursive: true })
+  const lines = events.map((e) => JSON.stringify({ ...e, ...meta })).join('\n') + '\n'
+  await fs.appendFile(path.join(dir, `${did}.ndjson`), lines)
+}
+
+async function readActivity(did) {
+  const out = []
+  let months = []
+  try { months = await fs.readdir(ACTIVITY_DIR) } catch { return out }
+  for (const m of months.sort()) {
+    try {
+      const raw = await fs.readFile(path.join(ACTIVITY_DIR, m, `${did}.ndjson`), 'utf8')
+      for (const line of raw.split('\n')) {
+        if (!line) continue
+        try { out.push(JSON.parse(line)) } catch { /* skip bad line */ }
+      }
+    } catch { /* device has no events this month */ }
+  }
+  return out
+}
+
+// Member-scoped read: merge THIS device's events with every event any device
+// tagged with the same shell member id — so insights follow the member across
+// phone/desktop/embed. Scans all shards; fine at current scale (small NDJSON
+// files), and a per-member index can drop in behind this signature later.
+async function readActivityForMember(did, shellId) {
+  const own = await readActivity(did)
+  const out = own.slice()
+  let months = []
+  try { months = await fs.readdir(ACTIVITY_DIR) } catch { return out }
+  for (const m of months.sort()) {
+    let files = []
+    try { files = await fs.readdir(path.join(ACTIVITY_DIR, m)) } catch { continue }
+    for (const f of files) {
+      if (!f.endsWith('.ndjson') || f === `${did}.ndjson`) continue
+      try {
+        const raw = await fs.readFile(path.join(ACTIVITY_DIR, m, f), 'utf8')
+        for (const line of raw.split('\n')) {
+          if (!line || !line.includes(shellId)) continue
+          try {
+            const e = JSON.parse(line)
+            if (e.shellId === shellId) out.push(e)
+          } catch { /* skip */ }
+        }
+      } catch { /* unreadable shard */ }
+    }
+  }
+  return out
+}
+
+function summarizeActivity(events, surahFilter) {
+  const totals = { listenSecs: 0, readSecs: 0, listens: 0, ayahsHeard: 0, surahsTouched: 0 }
+  const perSurah = {}
+  const perAyah = {}
+  const hours = new Array(24).fill(0) // LOCAL hour (ts + tzo), seconds listened
+  const heard = new Set()
+  for (const e of events) {
+    if (e.type === 'listen') {
+      totals.listenSecs += e.secs || 0
+      totals.listens += 1
+      const s = (perSurah[e.surah] ||= { listens: 0, secs: 0, ayahs: new Set() })
+      s.listens += 1; s.secs += e.secs || 0; s.ayahs.add(e.ayah)
+      heard.add(`${e.surah}:${e.ayah}`)
+      const local = new Date(Date.parse(e.ts) + (e.tzo || 0) * 60_000)
+      hours[local.getUTCHours()] += e.secs || 0
+      if (surahFilter && e.surah === surahFilter) {
+        const a = (perAyah[e.ayah] ||= { listens: 0, secs: 0, done: 0, kinds: {} })
+        a.listens += 1; a.secs += e.secs || 0; if (e.done) a.done += 1
+        a.kinds[e.kind] = (a.kinds[e.kind] || 0) + 1
+      }
+    } else if (e.type === 'read') {
+      totals.readSecs += e.secs || 0
+      const s = (perSurah[e.surah] ||= { listens: 0, secs: 0, ayahs: new Set() })
+      s.readSecs = (s.readSecs || 0) + (e.secs || 0)
+    }
+  }
+  totals.ayahsHeard = heard.size
+  totals.surahsTouched = Object.keys(perSurah).length
+  const perSurahOut = {}
+  for (const [k, v] of Object.entries(perSurah)) {
+    perSurahOut[k] = { listens: v.listens, secs: Math.round(v.secs), readSecs: Math.round(v.readSecs || 0), ayahsHeard: v.ayahs.size }
+  }
+  return {
+    totals: { ...totals, listenSecs: Math.round(totals.listenSecs), readSecs: Math.round(totals.readSecs) },
+    perSurah: perSurahOut,
+    ...(surahFilter ? { surah: surahFilter, perAyah } : {}),
+    hourHistogram: hours.map((s) => Math.round(s)),
+  }
+}
+
+// ---- Whole-surah export: ONE ZIP with everything the server holds for a surah ----
+// GET /api/export?surah=N            -> streamed application/zip
+// GET /api/export?surah=N&list=1     -> { files, bytes } (size preview, no data read)
+// Contents: AI TTS audio + .words.json karaoke timings for every language on disk
+// (meaning, long + short tafsir), all transcripts (STT + translations), the human
+// SOURCE recordings (STT sources — the app itself never plays them), the app
+// recitation files if present, and the surah text JSON. STORE-method ZIP written
+// by hand (mp3s are already compressed), streamed file-by-file with backpressure
+// so memory stays at one-file peak. NOTE: plain ZIP32 — fine for per-surah
+// exports; a whole-corpus multi-GB export would need ZIP64 (not needed yet).
+const _zipCrcTable = (() => {
+  const t = new Uint32Array(256)
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0 }
+  return t
+})()
+const zipCrc32 = (buf) => { let c = 0xffffffff; for (let i = 0; i < buf.length; i++) c = _zipCrcTable[(c ^ buf[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0 }
+const le16 = (v) => Buffer.from([v & 255, (v >> 8) & 255])
+const le32 = (v) => Buffer.from([v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255])
+
+// Everything on disk for surah `s`, as {abs, name} zip entries. Read-only walk of
+// FIXED roots + the surah's zero-padded directory — no user input ever joins a path.
+async function listSurahExport(s) {
+  const c3 = pad3(s)
+  const out = []
+  const addDir = async (absDir, zipPrefix) => {
+    let entries = []
+    try { entries = await fs.readdir(absDir) } catch { return }
+    for (const e of entries.sort()) {
+      if (e.startsWith('.') || e.includes('.tmp-') || e.includes('.bak')) continue
+      out.push({ abs: path.join(absDir, e), name: `${zipPrefix}/${e}` })
+    }
+  }
+  await addDir(path.join(SRV, 'tafsir', 'ssn', c3), 'source-recordings/long')
+  await addDir(path.join(SRV, 'tafsir-short', c3), 'source-recordings/short')
+  await addDir(path.join(SRV, 'recitation', c3), 'recitation')
+  for (const id of ['bazargan', 'bazargan-short']) {
+    let langs = []
+    try { langs = await fs.readdir(path.join(TTS_DIR, id)) } catch { /* none yet */ }
+    for (const l of langs.sort()) await addDir(path.join(TTS_DIR, id, l, c3), `tafsir-ai/${id}/${l}`)
+  }
+  {
+    let langs = []
+    try { langs = await fs.readdir(MEANING_DIR) } catch { /* none yet */ }
+    for (const l of langs.sort()) await addDir(path.join(MEANING_DIR, l, c3), `meaning-ai/${l}`)
+  }
+  for (const id of ['bazargan', 'bazargan-short']) {
+    let langs = []
+    try { langs = await fs.readdir(path.join(TRANSCRIPTS, id)) } catch { /* none yet */ }
+    for (const l of langs.sort()) await addDir(path.join(TRANSCRIPTS, id, l, c3), `transcripts/${id}/${l}`)
+  }
+  out.push({ abs: path.join(WEBROOT, 'data', 'surah', `${s}.json`), name: `text/surah-${s}.json` })
+  return out
+}
+
+async function streamSurahZip(res, s) {
+  const files = await listSurahExport(s)
+  res.writeHead(200, {
+    'content-type': 'application/zip',
+    'content-disposition': `attachment; filename="QuranHakim-surah${pad3(s)}-all.zip"`,
+    'cache-control': 'no-store',
+  })
+  const write = (buf) => new Promise((resolve) => (res.write(buf) ? resolve() : res.once('drain', resolve)))
+  const central = []
+  let offset = 0
+  let count = 0
+  for (const f of files) {
+    let data
+    try { data = await fs.readFile(f.abs) } catch { continue } // listed but unreadable -> skip
+    const name = Buffer.from(f.name, 'utf8')
+    const crc = zipCrc32(data)
+    const head = Buffer.concat([
+      le32(0x04034b50), le16(20), le16(0x0800), le16(0), le16(0), le16(0),
+      le32(crc), le32(data.length), le32(data.length), le16(name.length), le16(0),
+    ])
+    await write(head); await write(name); await write(data)
+    central.push(Buffer.concat([
+      le32(0x02014b50), le16(20), le16(20), le16(0x0800), le16(0), le16(0), le16(0),
+      le32(crc), le32(data.length), le32(data.length), le16(name.length), le16(0),
+      le16(0), le16(0), le16(0), le32(0), le32(offset), name,
+    ]))
+    offset += head.length + name.length + data.length
+    count++
+  }
+  let cdSize = 0
+  for (const c of central) { await write(c); cdSize += c.length }
+  await write(Buffer.concat([
+    le32(0x06054b50), le16(0), le16(0), le16(count), le16(count),
+    le32(cdSize), le32(offset), le16(0),
+  ]))
+  res.end()
+}
+
 // ---- Manifest of generated assets (transcripts + TTS audio) for "download all" ----
 // Walks the cache trees and returns static URL paths; cached 60s. Read-only.
 let _manifest = null
@@ -399,11 +737,12 @@ async function walkFiles(root, urlPrefix) {
 }
 async function getManifest() {
   if (_manifest && Date.now() - _manifest.at < 60_000) return _manifest.data
-  const [transcripts, tts] = await Promise.all([
+  const [transcripts, tts, meaning] = await Promise.all([
     walkFiles(TRANSCRIPTS, '/transcripts'),
     walkFiles(TTS_DIR, '/tafsir-tts'),
+    walkFiles(MEANING_DIR, '/meaning-tts'),
   ])
-  _manifest = { at: Date.now(), data: { transcripts, tts } }
+  _manifest = { at: Date.now(), data: { transcripts, tts, meaning } }
   return _manifest.data
 }
 
@@ -642,6 +981,9 @@ const server = http.createServer(async (req, res) => {
     // Note: NO Access-Control-Allow-Credentials — we use Bearer headers, not cookies.
   }
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end() }
+  // Container liveness probe (the JooW apphost mount's healthPath is /health).
+  // Deliberately dependency-free: 200 as soon as the process is serving.
+  if (url.pathname === '/health') return json(res, 200, { ok: true })
   if (url.pathname === '/api/health') return json(res, 200, { ok: true, stt: !!EL_KEY, translator: !!ANTHROPIC_KEY, model: EL_MODEL, tts: !!(EL_KEY && EL_VOICE), ttsModel: EL_TTS_MODEL, auth: !!SESSION_SECRET, apple: APPLE_AUDS.size > 0, google: GOOGLE_AUDS.size > 0 })
   if (url.pathname === '/api/transcript') {
     // POST = a device (e.g. iOS on-device speech) CONTRIBUTES a transcript to the shared cache.
@@ -710,7 +1052,7 @@ const server = http.createServer(async (req, res) => {
         return json(res, 503, { error: 'spoken audio for this surah is coming soon' })
       }
       return json(res, 200, { ok: true, ...(await getOrCreateTts(tafsir, s, a, lang)), model: EL_TTS_MODEL })
-    } catch (e) { console.error('[tts-audio]', e?.message || e); return json(res, e?.statusCode === 409 ? 409 : 502, { error: 'audio generation is temporarily unavailable' }) }
+    } catch (e) { console.error('[tts-audio]', e?.message || e); const code = e?.statusCode === 503 ? 503 : e?.statusCode === 409 || e?.status === 409 ? 409 : 502; return json(res, code, { error: code === 503 ? 'not_ready' : 'audio generation is temporarily unavailable' }) }
   }
   // ---- GET /api/meaning-audio?surah=&ayah=&lang= -> { ok, url, cached } ----
   // Full-ayah spoken "exact meaning" (clean translation). Gated to Fatiha until
@@ -723,11 +1065,11 @@ const server = http.createServer(async (req, res) => {
       const lang = cleanLang(url.searchParams.get('lang'))
       const ann = url.searchParams.get('ann') !== '0' // default: voice the inserted words (brackets stripped)
       if (!validSurah(s) || !validAyah(a) || !lang || !MEANING_LANGS.has(lang)) return json(res, 400, { error: 'bad params' })
-      if (!SCOPE_ALL && s !== 1 && !(await fileExists(meaningPath(lang, s, a, ann)))) {
+      if (!SCOPE_ALL && s !== 1 && !MEANING_SURAHS_EXTRA.has(s) && !(await fileExists(meaningPath(lang, s, a, ann)))) {
         return json(res, 503, { error: 'not_ready' })
       }
       return json(res, 200, { ok: true, ...(await getOrCreateMeaningTts(s, a, lang, ann)), model: EL_TTS_MODEL })
-    } catch (e) { console.error('[meaning-audio]', e?.message || e); return json(res, e?.statusCode === 400 ? 400 : 502, { error: 'audio generation is temporarily unavailable' }) }
+    } catch (e) { console.error('[meaning-audio]', e?.message || e); const code = e?.statusCode === 503 ? 503 : e?.statusCode === 400 ? 400 : 502; return json(res, code, { error: code === 503 ? 'not_ready' : 'audio generation is temporarily unavailable' }) }
   }
   // ---- GET /api/tts-segment?tafsir=&surah=&ayah=&lang=&idx= -> { ok, url, cached } ----
   // Per-sentence TTS clip from the cached transcript's segments[idx].text.
@@ -750,11 +1092,80 @@ const server = http.createServer(async (req, res) => {
         return json(res, 503, { error: 'spoken audio for this surah is coming soon' })
       }
       return json(res, 200, await getOrCreateSegTts(tafsir, s, a, lang, idx))
-    } catch (e) { console.error('[tts-segment]', e?.message || e); return json(res, e?.statusCode === 400 ? 400 : 502, { error: 'audio generation is temporarily unavailable' }) }
+    } catch (e) { console.error('[tts-segment]', e?.message || e); const code = e?.statusCode === 503 ? 503 : e?.statusCode === 400 ? 400 : 502; return json(res, code, { error: code === 503 ? 'not_ready' : 'audio generation is temporarily unavailable' }) }
   }
   if (url.pathname === '/api/manifest') {
     try { return json(res, 200, await getManifest()) }
     catch (e) { return json(res, 500, { error: String(e.message || e) }) }
+  }
+  // ---- POST /api/activity  |  GET /api/activity/summary ----
+  if (url.pathname === '/api/activity' && req.method === 'POST') {
+    try {
+      if (!rateOk(clientIp(req))) return json(res, 429, { error: 'slow down' })
+      const d = JSON.parse((await readBody(req)) || '{}')
+      const did = typeof d.did === 'string' && activityDidRe.test(d.did) ? d.did : null
+      if (!did || !Array.isArray(d.events)) return json(res, 400, { error: 'bad batch' })
+      const events = d.events.slice(0, 100).map(sanitizeActivityEvent).filter(Boolean)
+      if (events.length) {
+        const meta = {}
+        if (typeof d.userId === 'string' && d.userId.length <= 64) meta.userId = d.userId
+        if (typeof d.shellName === 'string' && d.shellName.length <= 80) meta.shellName = d.shellName
+        if (typeof d.shellId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(d.shellId)) meta.shellId = d.shellId
+        await appendActivity(did, meta, events)
+      }
+      return json(res, 200, { ok: true, accepted: events.length })
+    } catch (e) { console.error('[activity]', e?.message || e); return json(res, 200, { ok: false }) }
+  }
+  if (url.pathname === '/api/activity/summary') {
+    try {
+      const did = url.searchParams.get('did') || ''
+      if (!activityDidRe.test(did)) return json(res, 400, { error: 'bad did' })
+      const surah = Number(url.searchParams.get('surah')) || 0
+      const member = url.searchParams.get('member') || ''
+      const events = /^[A-Za-z0-9_-]{1,64}$/.test(member)
+        ? await readActivityForMember(did, member)
+        : await readActivity(did)
+      return json(res, 200, summarizeActivity(events, validSurah(surah) ? surah : 0))
+    } catch (e) { console.error('[activity-summary]', e?.message || e); return json(res, 500, { error: 'summary failed' }) }
+  }
+  // ---- GET /api/usage -> credits ledger summary (today / by day / totals) ----
+  if (url.pathname === '/api/usage') {
+    try {
+      const entries = await readLedger()
+      const byDay = {}
+      let total = 0
+      for (const e of entries) {
+        const day = (e.ts || '').slice(0, 10)
+        const cr = e.characterCost || e.chars || 0
+        byDay[day] = (byDay[day] || 0) + cr
+        total += cr
+      }
+      const today = new Date().toISOString().slice(0, 10)
+      return json(res, 200, {
+        today: { credits: byDay[today] || 0, budget: EL_DAILY_BUDGET || null },
+        total: { credits: total, calls: entries.length },
+        byDay,
+        note: 'ledger starts 2026-07-19 (v2 capture) — earlier spend is not recorded',
+      })
+    } catch (e) { return json(res, 500, { error: String(e.message || e) }) }
+  }
+  // ---- GET /api/export?surah=N[&list=1] -> whole-surah ZIP (or size preview) ----
+  if (url.pathname === '/api/export') {
+    const s = Number(url.searchParams.get('surah'))
+    if (!validSurah(s)) return json(res, 400, { error: 'bad surah' })
+    try {
+      if (url.searchParams.get('list')) {
+        const files = await listSurahExport(s)
+        let bytes = 0
+        for (const f of files) { try { bytes += (await fs.stat(f.abs)).size } catch { /* skip */ } }
+        return json(res, 200, { surah: s, files: files.length, bytes })
+      }
+      return await streamSurahZip(res, s)
+    } catch (e) {
+      console.error('[export]', e?.message || e)
+      if (!res.headersSent) return json(res, 500, { error: 'export failed' })
+      try { res.destroy() } catch { /* stream already broken */ }
+    }
   }
   if (url.pathname === '/api/comments') {
     // GET ?surah=&ayah=            -> { comments: [...] }

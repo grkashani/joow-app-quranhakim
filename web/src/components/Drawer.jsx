@@ -8,12 +8,16 @@ import {
   getReadAnnotations, setReadAnnotations,
 } from '../lib/settings.js'
 import { loadReciters, getReciter, setReciter } from '../lib/data.js'
+import { isFramed, getShellUser, SHELL_USER_EVENT } from '../lib/framed.js'
 
 // App language is fixed (English). The reader model settings below are the home
 // of all content choice: ONE meaning language, whether Arabic recitation plays
 // first, and the tafsir depth (off/short/long).
 export default function Drawer({ open, onClose }) {
   const { t } = useI18n()
+  // Framed: the JooW shell OWNS appearance (theme + language + direction), so
+  // hide the reader's own theme + language pickers — the shell drives them.
+  const framed = isFramed()
   const [theme, setThemeS] = useState(getTheme())
   const [font, setFontS] = useState(getFont())
   const [reciters, setReciters] = useState([])
@@ -23,6 +27,15 @@ export default function Drawer({ open, onClose }) {
   const [reciteArabic, setReciteArabicS] = useState(getReciteArabic)
   const [tafsirMode, setTafsirModeS] = useState(getTafsirMode)
   const [readAnnotations, setReadAnnotationsS] = useState(getReadAnnotations)
+  // Framed: the signed-in member's identity (from the yQuran shell) — shown as a
+  // small header here so the avatar lives in the menu instead of the top bar.
+  const [shellUser, setShellUser] = useState(() => getShellUser())
+  useEffect(() => {
+    if (!framed) return
+    const on = (e) => setShellUser(e.detail || null)
+    window.addEventListener(SHELL_USER_EVENT, on)
+    return () => window.removeEventListener(SHELL_USER_EVENT, on)
+  }, [framed])
 
   useEffect(() => { loadReciters().then(setReciters).catch(() => setReciters([])) }, [])
   // Re-sync from storage each time the drawer opens (another tab/session may have changed it).
@@ -55,6 +68,19 @@ export default function Drawer({ open, onClose }) {
           <button className="jq-sheet-close" onClick={onClose} aria-label={t('done')}>✕</button>
         </div>
 
+        {shellUser && (
+          <div className="jq-drawer-user" title={shellUser.name || ''}>
+            {shellUser.picture
+              ? <img className="jq-avatar jq-avatar-img jq-drawer-avatar" src={shellUser.picture} alt="" referrerPolicy="no-referrer" />
+              : <span className="jq-avatar jq-drawer-avatar">{(shellUser.name || '').trim().slice(0, 1)}</span>}
+            <span className="jq-drawer-user-name">{shellUser.name}</span>
+          </div>
+        )}
+
+        {/* Theme: shown EVERYWHERE, including framed. The interim external
+            embed doesn't drive the reader's theme, so hiding the toggle left
+            embedded members stuck — if the full SDK bridge later owns
+            appearance, its updates will simply overwrite this choice. */}
         <div className="jq-drawer-section">
           <div className="jq-section-title">{t('theme')}</div>
           <div className="jq-controls">
@@ -73,7 +99,10 @@ export default function Drawer({ open, onClose }) {
         </div>
 
         {/* Meaning language: SINGLE select — the language the meaning is always
-            shown and spoken in. */}
+            shown and spoken in. Available EVERYWHERE, including framed inside
+            the yQuran shell: this is a READER setting (which language is spoken
+            and displayed), not shell-owned appearance — hiding it in the embed
+            left members unable to switch languages at all. */}
         <div className="jq-drawer-section">
           <div className="jq-section-title">{t('meaningLanguage')}</div>
           {(() => {
@@ -169,6 +198,7 @@ export default function Drawer({ open, onClose }) {
           <div className="jq-about">
             <p>{t('aboutLine1')}</p>
             <p className="jq-muted">{t('aboutLine2')}</p>
+            <p className="jq-muted" dir="ltr">{`Build ${__APP_VERSION__}`}</p>
           </div>
         </div>
       </aside>

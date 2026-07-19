@@ -17,11 +17,22 @@ const pad3 = (n) => String(n).padStart(3, '0')
 export async function getMeaningUrl(surah, ayah, lang, ann = true) {
   const suffix = ann ? '' : '.noann'
   const staticUrl = `${AUDIO_BASE}/meaning-tts/${lang}/${pad3(surah)}/${pad3(surah)}_${pad3(ayah)}${suffix}.mp3`
+  // Gate on the `.words.json` karaoke sidecar (written with the mp3), not the mp3 alone,
+  // so a clip without word timings is regenerated instead of played un-highlightable.
+  // A GET (not HEAD): the service worker only intercepts GETs, so this works offline
+  // from the download cache — and it warms the sidecar cache for the reader.
   try {
-    const h = await fetch(staticUrl, { method: 'HEAD' })
+    const h = await fetch(staticUrl.replace(/\.mp3$/, '.words.json'))
     if (h.ok) return staticUrl
   } catch { /* fall through to get-or-create */ }
-  const r = await fetch(`${AUDIO_BASE}/api/meaning-audio?surah=${surah}&ayah=${ayah}&lang=${encodeURIComponent(lang)}&ann=${ann ? 1 : 0}`)
+  let r
+  try {
+    r = await fetch(`${AUDIO_BASE}/api/meaning-audio?surah=${surah}&ayah=${ayah}&lang=${encodeURIComponent(lang)}&ann=${ann ? 1 : 0}`)
+  } catch (err) {
+    // Network unreachable (offline): treat as "not ready" so the reader skips the
+    // step with its honest note instead of halting the whole read-along.
+    const e = new Error('offline'); e.status = 503; throw e
+  }
   const d = await r.json().catch(() => ({}))
   if (!r.ok || !d.url) { const e = new Error(d.error || `meaning ${r.status}`); e.status = r.status; throw e }
   return d.url.startsWith('http') ? d.url : `${AUDIO_BASE}${d.url}`
