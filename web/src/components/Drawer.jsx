@@ -178,17 +178,18 @@ export default function Drawer({ open, onClose }) {
           </div>
         </div>
 
-        {/* Farsi "Original": play Abdolali Bazargan's OWN voice for the tafsir
-            (short + long). The human recordings cover the whole Qur'an, so this
-            is what unlocks every surah for Persian. Farsi-only. */}
+        {/* Tafsir voice — Original (human recording) vs AI (ElevenLabs). For
+            Persian, "Original" is Abdolali Bazargan's OWN recorded lessons
+            (short + long), which cover the whole Qur'an; "AI" is the synthesized
+            narration. Only shown where an original human recording exists (fa). */}
         {meaningLang === 'fa' && (
           <div className="jq-drawer-section">
-            <div className="jq-section-title">{t('farsiOriginal')}</div>
+            <div className="jq-section-title">{t('tafsirVoice')}</div>
             <div className="jq-controls">
-              <button className={`jq-chip${farsiOriginal ? ' active' : ''}`} aria-pressed={farsiOriginal} onClick={() => chooseFarsiOriginal(true)}>{t('on')}</button>
-              <button className={`jq-chip${!farsiOriginal ? ' active' : ''}`} aria-pressed={!farsiOriginal} onClick={() => chooseFarsiOriginal(false)}>{t('off')}</button>
+              <button className={`jq-chip${farsiOriginal ? ' active' : ''}`} aria-pressed={farsiOriginal} onClick={() => chooseFarsiOriginal(true)}>{t('voiceOriginal')}</button>
+              <button className={`jq-chip${!farsiOriginal ? ' active' : ''}`} aria-pressed={!farsiOriginal} onClick={() => chooseFarsiOriginal(false)}>{t('voiceAI')}</button>
             </div>
-            <div className="jq-section-hint jq-muted">{t('farsiOriginalHint')}</div>
+            <div className="jq-section-hint jq-muted">{t('tafsirVoiceHint')}</div>
           </div>
         )}
 
