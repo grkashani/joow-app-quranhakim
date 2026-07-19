@@ -677,12 +677,18 @@
   z-index: 50;
   background: var(--joow-surface, #fff);
   transform: translateX(100%);
-  transition: transform 0.25s ease;
+  /* visibility flips AFTER the slide-out finishes (0s delay .25s). A closed
+     drawer must be fully hidden: iOS Safari expands the page layout to include
+     an off-screen translated FIXED element (position:fixed escapes the root's
+     overflow clip), which made the whole reader lay out ~2x wide — every line
+     clipped at the edges — the moment the drawer had ever been opened. */
+  visibility: hidden;
+  transition: transform 0.25s ease, visibility 0s linear 0.25s;
   overflow-y: auto;
   padding: 16px;
   box-shadow: -12px 0 34px rgba(0, 0, 0, 0.16);
 }
-.jq-drawer.open { transform: translateX(0); }
+.jq-drawer.open { transform: translateX(0); visibility: visible; transition: transform 0.25s ease; }
 .jq-drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .jq-drawer-title { font-size: 18px; font-weight: 800; }
 .jq-drawer-row {
