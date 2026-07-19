@@ -152,8 +152,14 @@ async function getOrCreate(tafsir, s, a, lang) {
 }
 
 // ---- ElevenLabs Text-to-Speech (v3): translated tafsir AUDIO ----
+// Per-language voice override: ELEVENLABS_VOICE_AR / _TR / … pick a NATIVE
+// voice per language (see /voice-audition on quranner.com); fall back to the
+// default voice. Changing a language's voice ⇒ delete its cached clips
+// (/srv/tafsir-tts/bazargan/<lang>/…) and re-run seg-batch to regenerate.
+const voiceFor = (langCode) =>
+  (langCode && process.env[`ELEVENLABS_VOICE_${String(langCode).toUpperCase().replace(/-/g, '_')}`]) || EL_VOICE
 async function ttsElevenLabs(text, langCode) {
-  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(EL_VOICE)}?output_format=${EL_TTS_FMT}`
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceFor(langCode))}?output_format=${EL_TTS_FMT}`
   const body = { text, model_id: EL_TTS_MODEL, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }
   if (langCode) body.language_code = langCode
   const res = await fetch(url, { method: 'POST', headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json', Accept: 'audio/mpeg' }, body: JSON.stringify(body) })
