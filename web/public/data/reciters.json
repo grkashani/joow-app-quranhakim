@@ -1,0 +1,16 @@
+[
+  { "id": "app", "nameEn": "Default (Quran Hakim)", "nameFa": "قاری برنامه", "pattern": "/recitation/{c3}/{c3}_{v3}.mp3" },
+  { "id": "alafasy", "nameEn": "Mishary Rashid Alafasy", "nameFa": "عفاسی", "pattern": "/reciters/Alafasy_128kbps/{c3}{v3}.mp3" },
+  { "id": "husary", "nameEn": "Mahmoud Khalil Al-Husary", "nameFa": "حصاری", "pattern": "/reciters/Husary_128kbps/{c3}{v3}.mp3" },
+  { "id": "ghamadi", "nameEn": "Saad Al-Ghamadi", "nameFa": "الغامدی", "pattern": "/reciters/Ghamadi_40kbps/{c3}{v3}.mp3" },
+  { "id": "shaatree", "nameEn": "Abu Bakr Ash-Shaatree", "nameFa": "ابوبکر شاطری", "pattern": "/reciters/Abu_Bakr_Ash-Shaatree_128kbps/{c3}{v3}.mp3" },
+  { "id": "ajamy", "nameEn": "Ahmed ibn Ali Al-Ajamy", "nameFa": "احمد العجمی", "pattern": "/reciters/ahmed_ibn_ali_al_ajamy_128kbps/{c3}{v3}.mp3" },
+  { "id": "hudhaify", "nameEn": "Ali Al-Hudhaify", "nameFa": "حذیفی", "pattern": "/reciters/Hudhaify_128kbps/{c3}{v3}.mp3" },
+  { "id": "hani_rifai", "nameEn": "Hani Ar-Rifai", "nameFa": "هانی رفاعی", "pattern": "/reciters/Hani_Rifai_192kbps/{c3}{v3}.mp3" },
+  { "id": "fares_abbad", "nameEn": "Fares Abbad", "nameFa": "فارس عباد", "pattern": "/reciters/Fares_Abbad_64kbps/{c3}{v3}.mp3" },
+  { "id": "ali_jaber", "nameEn": "Ali Jaber", "nameFa": "علی جابر", "pattern": "/reciters/Ali_Jaber_64kbps/{c3}{v3}.mp3" },
+  { "id": "maher", "nameEn": "Maher Al-Muaiqly", "nameFa": "ماهر المعیقلی", "pattern": "/reciters/MaherAlMuaiqly128kbps/{c3}{v3}.mp3" },
+  { "id": "tunaiji", "nameEn": "Khalifa Al-Tunaiji", "nameFa": "خلیفه الطنیجی", "pattern": "/reciters/khalefa_al_tunaiji_64kbps/{c3}{v3}.mp3" },
+  { "id": "basfar", "nameEn": "Abdullah Basfar", "nameFa": "عبدالله بصفر", "pattern": "/reciters/Abdullah_Basfar_192kbps/{c3}{v3}.mp3" },
+  { "id": "sudais", "nameEn": "Abdurrahmaan As-Sudais", "nameFa": "عبدالرحمان سدیس", "pattern": "/reciters/Abdurrahmaan_As-Sudais_192kbps/{c3}{v3}.mp3" }
+]

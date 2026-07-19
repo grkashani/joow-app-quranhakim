@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "note": "This app is dedicated to the 'bazargan' tafsir (Quran Hakim). Other tafsirs ship as separate mini-apps on the platform; the multi-tafsir schema below is the shared engine format.",
+  "tafsirs": [
+    {
+      "id": "bazargan",
+      "name": "پرتوی از قرآن",
+      "nameEn": "Partovi az Quran",
+      "author": "عبدالعلی بازرگان",
+      "authorEn": "Abdolali Bazargan",
+      "language": "fa",
+      "kind": "ayah",
+      "source": "app",
+      "coverage": "full",
+      "audio": { "pattern": "/tafsir/ssn/{c3}/{c3}_{v3}.mp3" },
+      "transcript": { "available": false, "lang": "fa", "pattern": "/transcripts/bazargan/{c3}/{c3}_{v3}.json" },
+      "engines": { "stt": "elevenlabs", "tts": "elevenlabs", "translate": "claude" },
+      "targetLangs": ["en", "ar", "es", "fr", "ur", "id", "ru", "de", "tr", "hi", "bn", "ms", "sw"],
+      "enabled": true
+    }
+  ],
+  "_schema": {
+    "kind": "ayah = one audio clip per ayah | session = per lecture/session | youtube = sourced from a video",
+    "tokens": "{c3}=3-digit surah, {v3}=3-digit ayah, {c}/{v}=raw numbers",
+    "youtubeExample": {
+      "id": "example-yt",
+      "kind": "youtube",
+      "language": "ar",
+      "audio": { "youtubeId": "VIDEO_ID", "segments": "url-to-segment-map.json" }
+    }
+  }
+}

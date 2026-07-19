@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Quran Hakim — قرآن حکیم</title>
+
+    <!-- Install / Add-to-Home-Screen identity: Quran Hakim's own icon + name
+         (previously fell back to a generic/yQuran icon with no manifest). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Quran Hakim" />
+    <!-- Sign in with Apple (web JS SDK) defaults. The Services ID below is a PUBLIC identifier;
+         auth.js re-initializes AppleID.auth with the value from VITE_APPLE_SERVICE_ID_WEB at
+         runtime, so this meta is a belt-and-braces fallback. Owner: replace with the real
+         Services ID once created (see deliverable env table). -->
+    <meta name="appleid-signin-client-id" content="" />
+    <meta name="appleid-signin-scope" content="name email" />
+    <meta name="appleid-signin-redirect-uri" content="https://quranner.com/auth/apple/callback" />
+    <meta name="appleid-signin-use-popup" content="true" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

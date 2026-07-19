@@ -1,0 +1,363 @@
+:root {
+  --joow-bg: #f6f7fb;
+  --joow-surface: #ffffff;
+  --joow-surface-soft: #f9fafb;
+  --joow-border: #e5e7eb;
+  --joow-border-strong: #d1d5db;
+  --joow-text: #111827;
+  --joow-muted: #6b7280;
+  --joow-primary: #5b54e8;
+  --joow-primary-strong: #4338ca;
+  --joow-primary-soft: #eef2ff;
+  --joow-success: #15803d;
+  --joow-warning: #b45309;
+  --joow-danger: #dc2626;
+  --joow-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+  --joow-font: Vazirmatn, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--joow-bg) !important;
+  color: var(--joow-text);
+  font-family: var(--joow-font) !important;
+  letter-spacing: 0 !important;
+}
+
+body::before {
+  display: none !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+.jd-app { --joow-accent: #db2777; }
+.jx-app { --joow-accent: #0f766e; }
+.jf-app,
+.jf-control { --joow-accent: #b45309; }
+.jm-app { --joow-accent: #2563eb; }
+.jt-app { --joow-accent: #b45309; }
+.jtu-app { --joow-accent: #7c3aed; }
+.jq-app { --joow-accent: #15803d; }
+.app-shell { --joow-accent: #5b54e8; }
+
+:where(.jd-app, .jx-app, .jf-app, .jf-control, .jm-app, .jt-app, .jtu-app, .app-shell) {
+  min-height: 100vh;
+  background: var(--joow-bg) !important;
+  color: var(--joow-text) !important;
+}
+
+:where(.jd-topbar, .jx-topbar, .jm-topbar, .jt-topbar, .jtu-topbar, .jf-top, .jf-header, .topbar) {
+  min-height: 64px;
+  height: auto !important;
+  padding: 12px 24px !important;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-bottom: 1px solid var(--joow-border) !important;
+  color: var(--joow-text) !important;
+  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.02);
+}
+
+:where(.jd-topbar, .jx-topbar, .jm-topbar, .jt-topbar, .jtu-topbar, .topbar) {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+:where(.jd-brand, .jx-brand, .jm-brand, .jt-brand, .jtu-brand, .brand) {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: max-content;
+  font-weight: 800;
+}
+
+:where(.jd-brand-dot, .jx-brand-dot, .jm-brand-dot, .jt-brand-dot, .jtu-brand-dot) {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 999px;
+  background: var(--joow-accent, var(--joow-primary)) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--joow-accent, var(--joow-primary)) 14%, transparent);
+}
+
+:where(.brand-badge, .jd-brand-tag) {
+  border: 1px solid var(--joow-border);
+  border-radius: 999px !important;
+  background: var(--joow-surface-soft) !important;
+  color: var(--joow-muted) !important;
+  padding: 3px 8px !important;
+  font-size: 11px !important;
+  font-weight: 800;
+}
+
+:where(.jd-nav, .jx-nav, .jm-nav, .jt-nav, .jtu-nav, .sidebar nav, .jf-tabs) {
+  display: flex;
+  gap: 6px;
+}
+
+:where(.sidebar nav) {
+  flex-direction: column;
+}
+
+:where(.jd-nav-link, .jx-nav-link, .jm-nav-link, .jt-nav-link, .jtu-nav-link, .nav-link, .jf-tabs button) {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px !important;
+  color: var(--joow-muted) !important;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 12px !important;
+  border: 1px solid transparent;
+  background: transparent !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+:where(.jd-nav-link, .jx-nav-link, .jm-nav-link, .jt-nav-link, .jtu-nav-link, .nav-link, .jf-tabs button):hover {
+  border-color: var(--joow-border);
+  background: var(--joow-surface-soft) !important;
+  color: var(--joow-text) !important;
+}
+
+:where(.jd-nav-link, .jx-nav-link, .jm-nav-link, .jt-nav-link, .jtu-nav-link, .nav-link, .jf-tabs button).active,
+:where(.jf-tabs button).is-active {
+  border-color: color-mix(in srgb, var(--joow-accent, var(--joow-primary)) 35%, var(--joow-border));
+  background: color-mix(in srgb, var(--joow-accent, var(--joow-primary)) 12%, white) !important;
+  color: var(--joow-accent, var(--joow-primary)) !important;
+}
+
+:where(.jd-main, .jx-main, .jm-main, .jt-main, .jtu-main, .main) {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px !important;
+}
+
+.app-body {
+  background: var(--joow-bg);
+}
+
+.sidebar {
+  width: 220px !important;
+  padding: 14px 10px !important;
+  background: var(--joow-surface) !important;
+  border-left: 1px solid var(--joow-border) !important;
+  color: var(--joow-text) !important;
+}
+
+:where(.jd-footer, .jx-footer, .jm-footer, .jt-footer, .jtu-footer) {
+  border-top: 1px solid var(--joow-border) !important;
+  background: var(--joow-surface) !important;
+  color: var(--joow-muted) !important;
+  padding: 14px 24px !important;
+  font-size: 12px !important;
+}
+
+:where(
+  .jd-card,
+  .jx-card,
+  .jm-card,
+  .jt-card,
+  .jtu-card,
+  .card,
+  .jf-menu,
+  .jf-panel,
+  .jf-cart,
+  .table-wrap,
+  [class$="-card"],
+  [class$="-panel"],
+  [class$="-sheet"]
+) {
+  border: 1px solid var(--joow-border) !important;
+  border-radius: 8px !important;
+  background: var(--joow-surface) !important;
+  color: var(--joow-text) !important;
+  box-shadow: var(--joow-shadow);
+}
+
+:where(.jd-hero, .jx-hero, .jm-hero, .jt-hero, .jtu-hero) {
+  border: 1px solid var(--joow-border) !important;
+  border-radius: 8px !important;
+  background: var(--joow-surface) !important;
+  color: var(--joow-text) !important;
+  padding: 24px !important;
+  text-align: start !important;
+  box-shadow: var(--joow-shadow);
+}
+
+:where(.jd-hero, .jx-hero, .jm-hero, .jt-hero, .jtu-hero) h1 {
+  margin: 0 0 10px;
+  color: var(--joow-text) !important;
+  font-size: 28px !important;
+  line-height: 1.25;
+}
+
+:where(.jd-hero, .jx-hero, .jm-hero, .jt-hero, .jtu-hero) p {
+  color: var(--joow-muted) !important;
+  font-size: 15px !important;
+  opacity: 1 !important;
+}
+
+:where(.jd-btn, .jx-btn, .jm-btn, .jt-btn, .jtu-btn, .jf-panel-head button, .jf-cart button) {
+  min-height: 40px;
+  border-radius: 8px !important;
+  border: 1px solid var(--joow-accent, var(--joow-primary)) !important;
+  background: var(--joow-accent, var(--joow-primary)) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: none !important;
+}
+
+:where(.jd-btn, .jx-btn, .jm-btn, .jt-btn, .jtu-btn, .jf-panel-head button, .jf-cart button):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--joow-accent, var(--joow-primary)) 88%, #111827) !important;
+}
+
+:where(.jd-btn, .jx-btn, .jm-btn, .jt-btn, .jtu-btn).secondary {
+  background: #ffffff !important;
+  color: var(--joow-accent, var(--joow-primary)) !important;
+}
+
+:where(.jd-input, .jx-input, .jm-input, .jt-input, .jtu-input, input, select, textarea) {
+  border-radius: 8px !important;
+}
+
+:where(.banner, .jd-banner, .jx-banner, .jm-banner, .jt-banner, .jtu-banner) {
+  border: 1px solid var(--joow-border) !important;
+  border-radius: 8px !important;
+  background: var(--joow-primary-soft) !important;
+  color: var(--joow-text) !important;
+}
+
+:where(.jf-pill, .jf-status, [class*="-pill"], [class*="-badge"], [class*="-status"]) {
+  border-radius: 999px !important;
+  border: 1px solid var(--joow-border) !important;
+  background: var(--joow-surface-soft) !important;
+  color: var(--joow-muted) !important;
+}
+
+:where(.jf-pill--ready, .jf-status--online, .jf-status--ready, .status-success) {
+  border-color: #bbf7d0 !important;
+  background: #f0fdf4 !important;
+  color: var(--joow-success) !important;
+}
+
+:where(.jf-pill--offline, .jf-status--offline, .status-warning) {
+  border-color: #fed7aa !important;
+  background: #fff7ed !important;
+  color: var(--joow-warning) !important;
+}
+
+:where(.jf-restaurants button, .jf-metrics button, .jf-dishes article, .jf-list article, .jf-workflow article) {
+  border: 1px solid var(--joow-border) !important;
+  border-radius: 8px !important;
+  background: var(--joow-surface) !important;
+  color: var(--joow-text) !important;
+  box-shadow: none !important;
+}
+
+:where(.jf-restaurants button.is-active, .jf-metrics button.is-active) {
+  border-color: color-mix(in srgb, var(--joow-accent) 40%, var(--joow-border)) !important;
+  background: color-mix(in srgb, var(--joow-accent) 10%, white) !important;
+  color: var(--joow-text) !important;
+}
+
+:where(.jf-dishes button) {
+  border-radius: 8px !important;
+  background: var(--joow-accent, var(--joow-primary)) !important;
+  color: #ffffff !important;
+}
+
+:where(table, .jx-table) {
+  border-collapse: separate !important;
+  border-spacing: 0;
+}
+
+:where(table.data th, table.data td, .jx-table th, .jx-table td) {
+  border-bottom: 1px solid var(--joow-border) !important;
+}
+
+:where(table.data th, .jx-table th) {
+  background: var(--joow-surface-soft) !important;
+  color: var(--joow-muted) !important;
+}
+
+.MuiPaper-root,
+.MuiCard-root,
+.MuiPaper-rounded {
+  border-radius: 8px !important;
+  border-color: var(--joow-border) !important;
+  background-color: var(--joow-surface) !important;
+  box-shadow: var(--joow-shadow) !important;
+}
+
+.MuiButton-root,
+.MuiChip-root,
+.MuiTextField-root .MuiOutlinedInput-root {
+  border-radius: 8px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+@media (max-width: 760px) {
+  :where(.jd-topbar, .jx-topbar, .jm-topbar, .jt-topbar, .jtu-topbar, .topbar) {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 12px 16px !important;
+  }
+
+  :where(.jd-nav, .jx-nav, .jm-nav, .jt-nav, .jtu-nav) {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  :where(.jd-main, .jx-main, .jm-main, .jt-main, .jtu-main, .main) {
+    padding: 16px !important;
+  }
+
+  .app-body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100% !important;
+    border-left: 0 !important;
+    border-bottom: 1px solid var(--joow-border) !important;
+  }
+
+  .sidebar nav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  :where(.jd-hero, .jx-hero, .jm-hero, .jt-hero, .jtu-hero) {
+    padding: 18px !important;
+  }
+
+  :where(.jd-hero, .jx-hero, .jm-hero, .jt-hero, .jtu-hero) h1 {
+    font-size: 24px !important;
+  }
+}

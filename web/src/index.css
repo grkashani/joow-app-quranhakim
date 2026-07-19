@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light;
+}
+
+html {
+  /* iOS WebKit "font boosting" inflates text when a block overflows the
+     viewport (worse inside the yQuran iframe) — the whole reader suddenly
+     renders huge and cut off at both edges. Pin text scaling. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  /* Never let any wide block (karaoke word stream, long unbreakable line)
+     expand the layout viewport sideways — that pan is the "messy" state. */
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+body {
+  background: var(--joow-bg, #f6f7fb);
+  /* Kill double-tap-to-zoom on rapid play-button taps; pinch still works. */
+  touch-action: manipulation;
+}
+
+* {
+  box-sizing: border-box;
+}

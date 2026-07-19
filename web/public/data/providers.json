@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "_notes": [
+    "ONE shared registry, loaded by BOTH backend and client.",
+    "Backend reads `capabilities` to DERIVE the producible matrix (no if-forests) and to enforce gates.",
+    "Client reads `label`/`icon`/`note` ONLY for presentation; per-ayah ready/generatable truth comes from GET /api/sources.",
+    "A provider = one object here + zero engine changes. Adding whisper/openai/google/piper is a data edit.",
+    "HARD INVARIANT: `claude` declares `audio:false` and has NO capability that `produces:audio`. It can never emit an audio cell.",
+    "Capability METHOD keys are a fixed vocabulary the engine understands: recording | authored | stt | translate | tts.",
+    "outputLanguages: 'source' (= transcript source lang) | 'audioSource' (= recording lang) | 'any' | [\"fa\",...] explicit list."
+  ],
+  "defaultTargetLangs": ["en", "ar", "tr", "ur", "id", "fr"],
+  "providers": [
+    {
+      "id": "original",
+      "label": "Original",
+      "icon": "👤",
+      "enabled": true,
+      "costTier": "free",
+      "audio": true,
+      "note": { "audio": "Human recording", "transcript": "Human text" },
+      "capabilities": {
+        "recording": { "produces": "audio", "input": null, "storage": "alias", "outputLanguages": "audioSource" },
+        "authored": { "produces": "transcript", "input": null, "storage": "file", "outputLanguages": "any" }
+      }
+    },
+    {
+      "id": "elevenlabs",
+      "label": "ElevenLabs",
+      "icon": "☁︎",
+      "enabled": true,
+      "costTier": "paid",
+      "audio": true,
+      "note": { "transcript": "Scribe (source language)", "audio": "Text-to-speech (any language)" },
+      "capabilities": {
+        "stt": { "produces": "transcript", "input": "audio", "outputLanguages": "source", "model": "scribe_v2" },
+        "tts": { "produces": "audio", "input": "transcript", "outputLanguages": "any", "model": "eleven_v3", "maxChars": 4500 }
+      }
+    },
+    {
+      "id": "claude",
+      "label": "Claude",
+      "icon": "🌐",
+      "enabled": true,
+      "costTier": "cheap",
+      "audio": false,
+      "note": { "transcript": "Translation (any language)" },
+      "capabilities": {
+        "translate": { "produces": "transcript", "input": "transcript", "outputLanguages": "any", "model": "claude-haiku-4-5-20251001" }
+      }
+    },
+    {
+      "id": "device",
+      "label": "On-device",
+      "icon": "📱",
+      "enabled": true,
+      "costTier": "free",
+      "audio": false,
+      "note": { "transcript": "On-device speech-to-text (source language)" },
+      "capabilities": {
+        "stt": { "produces": "transcript", "input": "audio", "outputLanguages": "source", "onDevice": true }
+      }
+    }
+  ]
+}

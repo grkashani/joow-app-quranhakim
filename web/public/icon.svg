@@ -1,0 +1,39 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Quran Hakim">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c8a45"/>
+      <stop offset="1" stop-color="#136534"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eaf5ee"/>
+    </linearGradient>
+  </defs>
+  <!-- Full-bleed background (maskable safe): keep the mark inside the centre 62%. -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- Accent crescent — Quran/Islamic signifier, kept small and top-centre. -->
+  <path d="M256 96c-24 0-45 12-57 30 9-6 20-9 32-9 33 0 60 27 60 60 0 20-10 38-25 49 22-6 39-27 39-51 0-44-27-79-49-79z"
+        fill="#f4c430" transform="translate(0 -2)"/>
+  <!-- Open mushaf: two pages rising from a centre spine, on a subtle stand. -->
+  <g transform="translate(256 300)">
+    <!-- soft shadow under the book -->
+    <ellipse cx="0" cy="112" rx="150" ry="20" fill="#0d4d27" opacity="0.35"/>
+    <!-- left page -->
+    <path d="M-6 -66 C -52 -96 -112 -92 -150 -74 L -150 78 C -112 60 -52 56 -6 86 Z" fill="url(#page)"/>
+    <!-- right page -->
+    <path d="M6 -66 C 52 -96 112 -92 150 -74 L 150 78 C 112 60 52 56 6 86 Z" fill="url(#page)"/>
+    <!-- spine -->
+    <path d="M0 -66 L0 86" stroke="#c7ddce" stroke-width="7" stroke-linecap="round"/>
+    <!-- text lines (both pages) -->
+    <g stroke="#3f9a63" stroke-width="7" stroke-linecap="round" opacity="0.85">
+      <path d="M-128 -50 H -30"/>
+      <path d="M-128 -22 H -30"/>
+      <path d="M-128 6 H -34"/>
+      <path d="M128 -50 H 30"/>
+      <path d="M128 -22 H 30"/>
+      <path d="M128 6 H 34"/>
+    </g>
+    <!-- gold bookmark ribbon -->
+    <path d="M0 -66 L0 118 L-14 100 L-28 118 L-28 -66 Z" fill="#f4c430" opacity="0.95"/>
+  </g>
+</svg>

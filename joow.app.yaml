@@ -1,0 +1,34 @@
+id: joowquran
+name: JoowQuran
+frontendVersion: "0.01"
+frontendVersionChangedAt: "2026-07-18T00:00:00Z"
+registered: true
+enabled: false
+apiBasePath: /api/joow/apps/joowquran
+apiMode: mountedApi
+roles:
+  - user
+  - operator
+  - admin
+  - owner
+  - root
+  - superadmin
+capabilities:
+  - embeddedWeb
+  - platformApi
+  - platformSso
+surfaces:
+  - id: web
+    role: user
+    roles:
+      - user
+    capabilities:
+      - embeddedWeb
+    apiBasePath: /api/joow/apps/joowquran
+    remoteUrl: https://apps.joow.ir/joowquran/web/
+    framework: vite
+    sourceDir: web
+    build:
+      command: npm run build
+    outputDir: apps/joowquran/dist/web
+    fallback: /__joow_apps/joowquran/web/index.html

@@ -1,0 +1,105 @@
+{
+ "num": 1,
+ "nameFa": "فاتحه",
+ "nameEn": "Faa'tiha",
+ "ayahs": [
+  {
+   "n": 1,
+   "ar": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
+   "fa": "به نام خدای رحمت گستر بر عام و خاص.",
+   "en": "in the name of god, the most compassionate, the most merciful,",
+   "t": {
+    "ar": "باسم الله الذي عمّت رحمته العام والخاص.",
+    "fr": "au nom de dieu, le très compatissant, le très miséricordieux,",
+    "es": "en el nombre de dios, el más compasivo, el más misericordioso,",
+    "de": "Im Namen Gottes, des Allerbarmers, des Barmherzigen.",
+    "ru": "Во имя Бога, Милостивого, Милосердного.",
+    "tr": "Rahman ve Rahim olan Allah'ın adıyla."
+   }
+  },
+  {
+   "n": 2,
+   "ar": "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَـمِينَ",
+   "fa": "حمد به تمامه برای خدایی است که رب جهانیان است.",
+   "en": "praise be to god, the lord of the worlds;",
+   "t": {
+    "ar": "الحمد كله لله الذي هو رب العالمين.",
+    "fr": "louange à dieu, le seigneur des mondes ;",
+    "es": "alabado sea dios, el señor de los mundos;",
+    "de": "Alles Lob gebührt Gott, dem Herrn der Welten,",
+    "ru": "Хвала Богу, Господу миров,",
+    "tr": "Hamd, alemlerin Rabbi olan Allah'a mahsustur."
+   }
+  },
+  {
+   "n": 3,
+   "ar": "الرَّحْمَنِ الرَّحِيمِ",
+   "fa": "همان رحمت گستر بر عام و خاص.",
+   "en": "the most compassionate, the most merciful,",
+   "t": {
+    "ar": "الذي عمّت رحمته العام والخاص.",
+    "fr": "le très compatissant, le très miséricordieux,",
+    "es": "el más compasivo, el más misericordioso,",
+    "de": "dem Allerbarmer, dem Barmherzigen,",
+    "ru": "Милостивому, Милосердному,",
+    "tr": "O, Rahman'dır, Rahim'dir."
+   }
+  },
+  {
+   "n": 4,
+   "ar": "مَالِكِ يَوْمِ الدِّينِ",
+   "fa": "مالک روز جزا.",
+   "en": "master of the day of judgment.",
+   "t": {
+    "ar": "مالك يوم الجزاء.",
+    "fr": "maître du jour du jugement.",
+    "es": "soberano del día del juicio.",
+    "de": "dem Herrscher am Tag des Gerichts.",
+    "ru": "Властителю Дня воздаяния.",
+    "tr": "Din gününün sahibidir."
+   }
+  },
+  {
+   "n": 5,
+   "ar": "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
+   "fa": "تنها تو را عبادت می کنیم و تنها از تو یاری می طلبیم.",
+   "en": "you do we worship and you do we ask for help.",
+   "t": {
+    "ar": "إياك وحدك نعبد، وإياك وحدك نستعين.",
+    "fr": "c'est toi que nous adorons et c'est toi dont nous implorons l'aide.",
+    "es": "solo a ti adoramos y solo a ti pedimos ayuda.",
+    "de": "Dir allein dienen wir, und Dich allein bitten wir um Hilfe.",
+    "ru": "Тебе одному мы поклоняемся и Тебя одного просим о помощи.",
+    "tr": "Yalnız sana ibadet ederiz ve yalnız senden yardım dileriz."
+   }
+  },
+  {
+   "n": 6,
+   "ar": "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
+   "fa": "ما را به راه مستقیم راهبر باش.",
+   "en": "guide us to the straight path,",
+   "t": {
+    "ar": "اهدنا إلى الطريق المستقيم.",
+    "fr": "guide-nous sur le droit chemin,",
+    "es": "guíanos por el camino recto,",
+    "de": "Führe uns den geraden Weg,",
+    "ru": "Веди нас прямым путём,",
+    "tr": "Bizi doğru yola ilet."
+   }
+  },
+  {
+   "n": 7,
+   "ar": "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
+   "fa": "راه کسانی که به انها نعمت دادی، نه مغضوب شدگان و نه گمراهان.",
+   "en": "the path of those whom you have blessed, not of those who incur wrath, nor of those who have gone astray.",
+   "t": {
+    "ar": "طريق الذين أنعمت عليهم، لا الذين غُضب عليهم ولا الضالين.",
+    "fr": "le chemin de ceux que tu as comblés de bienfaits, non de ceux qui encourent la colère, ni de ceux qui s'égarent.",
+    "es": "el camino de aquellos a quienes has bendecido, no el de quienes incurren en la ira, ni el de los extraviados.",
+    "de": "den Weg derer, denen Du Gnade erwiesen hast, nicht derer, die Deinen Zorn erregt haben, und nicht der Irregehenden.",
+    "ru": "путём тех, кого Ты облагодетельствовал, не тех, на кого пал гнев, и не заблудших.",
+    "tr": "Kendilerine nimet verdiğin kimselerin yoluna; gazaba uğrayanların ve sapmışların yoluna değil."
+   }
+  }
+ ]
+}

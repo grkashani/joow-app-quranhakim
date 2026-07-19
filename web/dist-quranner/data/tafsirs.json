@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "tafsirs": [
+    {
+      "id": "bazargan",
+      "name": "پرتوی از قرآن",
+      "nameEn": "Partovi az Quran",
+      "author": "عبدالعلی بازرگان",
+      "authorEn": "Abdolali Bazargan",
+      "language": "fa",
+      "kind": "ayah",
+      "source": "app",
+      "coverage": "full",
+      "audio": { "pattern": "/tafsir/ssn/{c3}/{c3}_{v3}.mp3" },
+      "transcript": { "available": false, "lang": "fa", "pattern": "/transcripts/bazargan/{c3}/{c3}_{v3}.json" },
+      "enabled": true
+    },
+    {
+      "id": "eng-bazargan",
+      "name": "Bazargan (English)",
+      "nameEn": "Bazargan (English)",
+      "author": "Abdolali Bazargan",
+      "authorEn": "Abdolali Bazargan",
+      "language": "en",
+      "kind": "ayah",
+      "source": "app",
+      "coverage": "partial",
+      "audio": { "pattern": "/tafsir/eng/ssn/{c3}/{c3}_{v3}.mp3" },
+      "transcript": { "available": false, "lang": "en", "pattern": "/transcripts/eng-bazargan/{c3}/{c3}_{v3}.json" },
+      "enabled": false
+    }
+  ],
+  "_schema": {
+    "kind": "ayah = one audio clip per ayah | session = per lecture/session | youtube = sourced from a video",
+    "tokens": "{c3}=3-digit surah, {v3}=3-digit ayah, {c}/{v}=raw numbers",
+    "youtubeExample": {
+      "id": "example-yt",
+      "kind": "youtube",
+      "language": "ar",
+      "audio": { "youtubeId": "VIDEO_ID", "segments": "url-to-segment-map.json" }
+    }
+  }
+}

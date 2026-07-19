@@ -1,0 +1,17 @@
+{
+  "id": "bazargan",
+  "num": 1,
+  "aliases": ["tafsir-001"],
+  "title": "پرتوی از قرآن",
+  "titleEn": "Partovi az Quran",
+  "author": "عبدالعلی بازرگان",
+  "authorEn": "Abdolali Bazargan",
+  "sourceLang": "fa",
+  "kind": "ayah",
+  "description": "Ayah-by-ayah Persian tafsir (commentary) by Abdolali Bazargan.",
+  "audio": {
+    "original": { "pattern": "/tafsir/ssn/{c3}/{c3}_{v3}.mp3", "lang": "fa", "surahs": "1-114" }
+  },
+  "engines": { "stt": "elevenlabs", "tts": "elevenlabs", "translate": "claude" },
+  "targetLangs": ["en", "ar", "es", "fr", "ur", "id", "ru", "de", "tr", "hi", "bn", "ms", "sw"]
+}
