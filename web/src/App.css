@@ -874,6 +874,10 @@
 .jq-lang-radio { border-radius: 50%; }
 .jq-lang-native { flex: 0 0 auto; }
 .jq-lang-name { font-size: 12px; color: var(--joow-muted, #6b7280); font-weight: 400; }
+/* Collapsed language picker: a trigger button that opens the list on tap. */
+.jq-lang-trigger { width: 100%; font-weight: 700; }
+.jq-lang-trigger .jq-lang-caret { margin-inline-start: auto; opacity: 0.5; font-size: 11px; font-weight: 400; }
+.jq-lang-select { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 
 /* Sentence study blocks: numbered like a study book — Persian sentence first,
    then one row per added language, each with its own ▶. */

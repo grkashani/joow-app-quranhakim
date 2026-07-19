@@ -19,6 +19,7 @@ export default function Drawer({ open, onClose }) {
   const [reciters, setReciters] = useState([])
   const [reciter, setReciterS] = useState(getReciter())
   const [meaningLang, setMeaningLangS] = useState(getMeaningLang)
+  const [langOpen, setLangOpen] = useState(false)
   const [reciteArabic, setReciteArabicS] = useState(getReciteArabic)
   const [tafsirMode, setTafsirModeS] = useState(getTafsirMode)
   const [readAnnotations, setReadAnnotationsS] = useState(getReadAnnotations)
@@ -75,25 +76,43 @@ export default function Drawer({ open, onClose }) {
             shown and spoken in. */}
         <div className="jq-drawer-section">
           <div className="jq-section-title">{t('meaningLanguage')}</div>
-          <div className="jq-lang-select" role="radiogroup" aria-label={t('meaningLanguage')}>
-            {MEANING_LANGS.map((c) => {
-              const m = LANGUAGES.find((l) => l.code === c)
-              const on = meaningLang === c
-              return (
-                <button
-                  key={c}
-                  className={`jq-lang-row${on ? ' active' : ''}`}
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => chooseMeaning(c)}
-                >
-                  <span className="jq-lang-check jq-lang-radio">{on ? '●' : ''}</span>
-                  <span className="jq-lang-native">{m?.native || c}</span>
-                  {m && m.name !== m.native && <span className="jq-lang-name">{m.name}</span>}
-                </button>
-              )
-            })}
-          </div>
+          {(() => {
+            const cur = LANGUAGES.find((l) => l.code === meaningLang)
+            return (
+              <button
+                type="button"
+                className="jq-lang-row jq-lang-trigger"
+                aria-haspopup="listbox"
+                aria-expanded={langOpen}
+                onClick={() => setLangOpen((v) => !v)}
+              >
+                <span className="jq-lang-native">{cur?.native || meaningLang}</span>
+                {cur && cur.name !== cur.native && <span className="jq-lang-name">{cur.name}</span>}
+                <span className="jq-lang-caret" aria-hidden="true">{langOpen ? '▲' : '▼'}</span>
+              </button>
+            )
+          })()}
+          {langOpen && (
+            <div className="jq-lang-select" role="listbox" aria-label={t('meaningLanguage')}>
+              {MEANING_LANGS.map((c) => {
+                const m = LANGUAGES.find((l) => l.code === c)
+                const on = meaningLang === c
+                return (
+                  <button
+                    key={c}
+                    className={`jq-lang-row${on ? ' active' : ''}`}
+                    role="option"
+                    aria-selected={on}
+                    onClick={() => { chooseMeaning(c); setLangOpen(false) }}
+                  >
+                    <span className="jq-lang-check jq-lang-radio">{on ? '●' : ''}</span>
+                    <span className="jq-lang-native">{m?.native || c}</span>
+                    {m && m.name !== m.native && <span className="jq-lang-name">{m.name}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Recite Arabic first: play the Arabic recitation BEFORE the meaning. */}
