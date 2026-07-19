@@ -31,6 +31,12 @@ const MEANING_KEY = 'jq.meaningLang'
 const RECITE_KEY = 'jq.reciteArabic'
 const TAFSIR_KEY = 'jq.tafsirMode'
 const ANNOTATIONS_KEY = 'jq.readAnnotations'
+// Farsi "Original" mode: play Abdolali Bazargan's OWN voice for the tafsir
+// (short + long) instead of the AI-narrated Persian. The human recordings cover
+// the WHOLE Qur'an, so this is what lets Farsi users use every surah today (the
+// AI narration only exists for a few surahs). Farsi-only; ignored for other
+// meaning languages. Default OFF (AI narration remains the default everywhere).
+const ORIGINAL_KEY = 'jq.farsiOriginal'
 
 export function getMeaningLang() {
   const v = localStorage.getItem(MEANING_KEY)
@@ -51,9 +57,12 @@ export function getReadAnnotations() {
   const v = localStorage.getItem(ANNOTATIONS_KEY)
   return v == null ? true : v === '1' // default ON — read the translator's [..]/(..) insertions
 }
+export function getFarsiOriginal() {
+  return localStorage.getItem(ORIGINAL_KEY) === '1' // default OFF
+}
 
 export function getReaderSettings() {
-  return { meaningLang: getMeaningLang(), reciteArabic: getReciteArabic(), tafsirMode: getTafsirMode(), readAnnotations: getReadAnnotations() }
+  return { meaningLang: getMeaningLang(), reciteArabic: getReciteArabic(), tafsirMode: getTafsirMode(), readAnnotations: getReadAnnotations(), farsiOriginal: getFarsiOriginal() }
 }
 const emit = () => window.dispatchEvent(new CustomEvent(READER_SETTINGS_EVENT, { detail: getReaderSettings() }))
 
@@ -67,3 +76,4 @@ export function setTafsirMode(m) {
   const v = m === 'short' || m === 'long' ? m : 'off'
   localStorage.setItem(TAFSIR_KEY, v); emit(); return v
 }
+export function setFarsiOriginal(on) { localStorage.setItem(ORIGINAL_KEY, on ? '1' : '0'); emit(); return !!on }

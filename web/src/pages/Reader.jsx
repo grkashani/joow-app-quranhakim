@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { loadSurah, recitationAudioUrl, getReciter, AUDIO_BASE } from '../lib/data.js'
+import { loadSurah, recitationAudioUrl, tafsirAudioUrl, shortTafsirAudioUrl, getReciter, AUDIO_BASE } from '../lib/data.js'
 import { getDedicatedTafsir, getDedicatedShortTafsir } from '../lib/tafsir.js'
 import { getCached, setCached, getServerTranscript } from '../lib/transcribe.js'
 import { getTtsUrl } from '../lib/tts.js'
@@ -174,7 +174,7 @@ export default function Reader() {
   // Reader settings (single meaning language + two toggles). Live-updates while
   // the Settings drawer is open via the settings event.
   const [settings, setSettings] = useState(getReaderSettings)
-  const { meaningLang, reciteArabic, tafsirMode, readAnnotations } = settings
+  const { meaningLang, reciteArabic, tafsirMode, readAnnotations, farsiOriginal } = settings
   const settingsRef = useRef(settings)
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => {
@@ -374,10 +374,14 @@ export default function Reader() {
       setCached(taf.id, meaningLang, surahNum, n, e)
       setTafsirText((m) => ({ ...m, [k]: e }))
     } catch (err) {
-      setTafsirText((m) => ({ ...m, [k]: err?.status === 503 ? { note: t('ttsUnavailable') } : { error: String(err.message || err) } }))
+      // In Farsi "Original" mode the recording plays even without a transcript —
+      // so the honest note is the reverse of the default (audio works, text is
+      // still being prepared), not "audio arrives soon".
+      const note = t(farsiOriginal && meaningLang === 'fa' ? 'originalNoText' : 'ttsUnavailable')
+      setTafsirText((m) => ({ ...m, [k]: err?.status === 503 ? { note } : { error: String(err.message || err) } }))
     }
     inflight.current.delete(k)
-  }, [activeTafsir, tafsirMode, meaningLang, surahNum, t])
+  }, [activeTafsir, tafsirMode, meaningLang, surahNum, farsiOriginal, t])
 
   useEffect(() => {
     // Both LONG and SHORT tafsir have a transcript (short summary is STT'd too),
@@ -399,13 +403,22 @@ export default function Reader() {
 
   // Resolve one step to a playable URL. recite is direct; meaning + tafsir go
   // through the 503-tolerant backend (get-or-create AI TTS with a word-timing
-  // sidecar). Tafsir — long OR short — ALWAYS plays AI TTS of the transcript, in
-  // EVERY language including Persian: the human Bazargan recordings are only the
-  // STT source and are never played.
+  // sidecar). Tafsir — long OR short — normally plays AI TTS of the transcript,
+  // in EVERY language including Persian.
+  //
+  // EXCEPTION — Farsi "Original" mode: play Abdolali Bazargan's OWN recording
+  // instead of the AI narration. These human recordings cover the WHOLE Qur'an
+  // (the AI narration only exists for a few surahs), so this is what lets Farsi
+  // users open any surah today. Word-karaoke appears only where a .words.json
+  // sidecar has been generated from the STT transcript; otherwise the reader
+  // falls back to whole-line highlighting.
   const resolveUrl = useCallback(async (kind, n) => {
     const s = settingsRef.current
     if (kind === 'recite') return recitationAudioUrl(surahNum, n)
     if (kind === 'meaning') return getMeaningUrl(surahNum, n, s.meaningLang, s.readAnnotations)
+    if (s.farsiOriginal && s.meaningLang === 'fa') {
+      return s.tafsirMode === 'short' ? shortTafsirAudioUrl(surahNum, n) : tafsirAudioUrl(surahNum, n)
+    }
     // tafsir (long lecture or short summary) — one unified AI-TTS pipeline.
     const taf = s.tafsirMode === 'short' ? tafsirShort : tafsir
     if (!taf) { const e = new Error('tafsir not ready'); e.status = 503; throw e }
@@ -494,22 +507,23 @@ export default function Reader() {
   const resolveUrlRef = useRef(resolveUrl)
   useEffect(() => { resolveUrlRef.current = resolveUrl }, [resolveUrl])
   const swapIdRef = useRef(0)
-  const prevSwapKeyRef = useRef(`${meaningLang}|${tafsirMode}|${readAnnotations}`)
+  const prevSwapKeyRef = useRef(`${meaningLang}|${tafsirMode}|${readAnnotations}|${farsiOriginal}`)
   useEffect(() => {
-    const key = `${meaningLang}|${tafsirMode}|${readAnnotations}`
+    const key = `${meaningLang}|${tafsirMode}|${readAnnotations}|${farsiOriginal}`
     const prev = prevSwapKeyRef.current
     if (prev === key) return
-    const [pLang, pMode, pAnn] = prev.split('|')
+    const [pLang, pMode, pAnn, pOrig] = prev.split('|')
     prevSwapKeyRef.current = key
     const langChanged = pLang !== meaningLang
     const modeChanged = pMode !== tafsirMode
     const annChanged = pAnn !== String(readAnnotations)
+    const origChanged = pOrig !== String(farsiOriginal)
     const c = cursorRef.current
     const el = audioRef.current
     if (!c || !el || !el.src) return
     if (c.kind === 'recite') return
     if (c.kind === 'meaning' && !(langChanged || annChanged)) return
-    if (c.kind === 'tafsir' && !(langChanged || modeChanged)) return
+    if (c.kind === 'tafsir' && !(langChanged || modeChanged || origChanged)) return
     // Tafsir switched OFF while a tafsir step is playing -> glide to the next ayah.
     // Pause first so the old clip can't fire onEnded and double-advance.
     if (c.kind === 'tafsir' && tafsirMode !== 'long' && tafsirMode !== 'short') {
@@ -606,7 +620,7 @@ export default function Reader() {
         }
       }
     })()
-  }, [meaningLang, tafsirMode, readAnnotations, t])
+  }, [meaningLang, tafsirMode, readAnnotations, farsiOriginal, t])
 
   // Advance by KIND, not by raw index: settings toggles (e.g. "Recite Arabic
   // first") can change the step list mid-ayah, so "si + 1" against a freshly

@@ -6,6 +6,7 @@ import {
   getReciteArabic, setReciteArabic,
   getTafsirMode, setTafsirMode,
   getReadAnnotations, setReadAnnotations,
+  getFarsiOriginal, setFarsiOriginal,
 } from '../lib/settings.js'
 import { loadReciters, getReciter, setReciter } from '../lib/data.js'
 import { isFramed, getShellUser, SHELL_USER_EVENT, postToShell } from '../lib/framed.js'
@@ -27,6 +28,7 @@ export default function Drawer({ open, onClose }) {
   const [reciteArabic, setReciteArabicS] = useState(getReciteArabic)
   const [tafsirMode, setTafsirModeS] = useState(getTafsirMode)
   const [readAnnotations, setReadAnnotationsS] = useState(getReadAnnotations)
+  const [farsiOriginal, setFarsiOriginalS] = useState(getFarsiOriginal)
   // Framed: the signed-in member's identity (from the yQuran shell) — shown as a
   // small header here so the avatar lives in the menu instead of the top bar.
   const [shellUser, setShellUser] = useState(() => getShellUser())
@@ -42,7 +44,7 @@ export default function Drawer({ open, onClose }) {
   useEffect(() => {
     if (!open) return
     setMeaningLangS(getMeaningLang()); setReciteArabicS(getReciteArabic()); setTafsirModeS(getTafsirMode())
-    setReadAnnotationsS(getReadAnnotations())
+    setReadAnnotationsS(getReadAnnotations()); setFarsiOriginalS(getFarsiOriginal())
   }, [open])
 
   const chooseTheme = (v) => { setTheme(v); setThemeS(v) }
@@ -52,6 +54,7 @@ export default function Drawer({ open, onClose }) {
   const chooseRecite = (on) => setReciteArabicS(setReciteArabic(on))
   const chooseTafsir = (m) => setTafsirModeS(setTafsirMode(m))
   const chooseAnnotations = (on) => setReadAnnotationsS(setReadAnnotations(on))
+  const chooseFarsiOriginal = (on) => setFarsiOriginalS(setFarsiOriginal(on))
 
   async function share() {
     try {
@@ -174,6 +177,20 @@ export default function Drawer({ open, onClose }) {
             <button className={`jq-chip${tafsirMode === 'long' ? ' active' : ''}`} aria-pressed={tafsirMode === 'long'} onClick={() => chooseTafsir('long')}>{t('tafsirLong')}</button>
           </div>
         </div>
+
+        {/* Farsi "Original": play Abdolali Bazargan's OWN voice for the tafsir
+            (short + long). The human recordings cover the whole Qur'an, so this
+            is what unlocks every surah for Persian. Farsi-only. */}
+        {meaningLang === 'fa' && (
+          <div className="jq-drawer-section">
+            <div className="jq-section-title">{t('farsiOriginal')}</div>
+            <div className="jq-controls">
+              <button className={`jq-chip${farsiOriginal ? ' active' : ''}`} aria-pressed={farsiOriginal} onClick={() => chooseFarsiOriginal(true)}>{t('on')}</button>
+              <button className={`jq-chip${!farsiOriginal ? ' active' : ''}`} aria-pressed={!farsiOriginal} onClick={() => chooseFarsiOriginal(false)}>{t('off')}</button>
+            </div>
+            <div className="jq-section-hint jq-muted">{t('farsiOriginalHint')}</div>
+          </div>
+        )}
 
         {/* Read translator insertions: include the clarifying [..]/(..) words the
             translator added, in both the spoken audio and the shown text. */}
