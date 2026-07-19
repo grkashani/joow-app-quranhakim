@@ -40,7 +40,11 @@ const fillPattern = (pattern, surah, ayah) =>
 // at boot, before the registry JSON has finished loading.
 const RECITER_KEY = 'jq.reciter'
 const RECITER_PATTERN_KEY = 'jq.reciterPattern'
-const APP_RECITER_PATTERN = '/recitation/{c3}/{c3}_{v3}.mp3'
+// Default reciter = Mishary Alafasy. The old "app"/Quran-Hakim entry was removed:
+// it is Bazargan's Persian tafsir voice, NOT an Arabic qari, so it doesn't belong
+// in the reciter (قاری عربی) list.
+const DEFAULT_RECITER_ID = 'alafasy'
+const APP_RECITER_PATTERN = '/reciters/Alafasy_128kbps/{c3}{v3}.mp3'
 
 let _reciters = null
 let _pattern = (() => {
@@ -59,18 +63,19 @@ export async function loadReciters() {
   _reciters = await res.json()
   // Re-apply the stored selection against the fresh registry (heals a stale mirror).
   const cur = _reciters.find((r) => r.id === getReciter())
+    || _reciters.find((r) => r.id === DEFAULT_RECITER_ID) || _reciters[0]
   if (cur) applyPattern(cur.pattern)
   return _reciters
 }
 
 export function getReciter() {
-  try { return localStorage.getItem(RECITER_KEY) || 'app' } catch { return 'app' }
+  try { return localStorage.getItem(RECITER_KEY) || DEFAULT_RECITER_ID } catch { return DEFAULT_RECITER_ID }
 }
 
 export function setReciter(id) {
   try { localStorage.setItem(RECITER_KEY, id) } catch { /* private mode */ }
   const r = _reciters?.find((x) => x.id === id)
-  applyPattern(id === 'app' ? APP_RECITER_PATTERN : r?.pattern)
+  applyPattern(r?.pattern || APP_RECITER_PATTERN)
 }
 
 // Relative paths on the backend (also used as offline cache keys).
