@@ -35,6 +35,36 @@ Cloning a voice needs clean reference audio + a characterization. We keep both:
 - Backups: `/srv/backups/derived-text-<date>.tar.gz` (transcripts, perf, voice profiles, manifest) + `ai-audio-<date>.tar` (paid TTS). Re-run after big generation batches.
 - **Off-site is still needed** for disk-failure safety (same-disk backup only guards against accidental deletion). Set up `rclone` to cloud when a bucket is available; include `/srv/tafsir`, `/srv/tafsir-short`, `/srv/transcripts`, `/srv/voice-profiles`, `/srv/tafsir-tts`, `/srv/meaning-tts`.
 
+## Translation (multi-language, provider-agnostic)
+
+`translate-tafsir.mjs` translates every Persian transcript into the 13 target
+languages **segment by segment**, so each translation keeps his sentence
+boundaries + timings (stays synced to his voice), and contributes it back via
+`/api/transcript` (source `claude-translation`). The LLM backend is your choice —
+**Anthropic**, or any **OpenAI-compatible endpoint incl. a free local model on a
+Mac** (Ollama / LM Studio via `OPENAI_BASE_URL`). Ready now; needs a key/endpoint.
+Scope waiting: ~14,573 short jobs + the long lectures. Runs only over what's
+transcribed (transcription itself is paused — ElevenLabs Pro quota 610k exhausted).
+
+## Voice-capture completeness — roadmap (from review, to maximize reconstruction)
+
+Ranked; all free unless noted. Make the stored voice data usable by ANY TTS/clone:
+- **P0 speaker embedding** — cloners ingest a neural speaker vector, not Praat
+  numbers. Add ECAPA-TDNN (SpeechBrain) / WavLM-SV / Resemblyzer per reference
+  clip + a corpus centroid; version by model id. (Compute on the reference set,
+  not all 12k — RAM-friendly.)
+- **P0 reference-clip segmentation + quality gate** — cut clean 5-30s clips from
+  the long lectures (Silero/webrtc VAD + `librosa.trim`), and gate on true SNR,
+  clipping/true-peak, and bandwidth (not just HNR/jitter). Produce a normalized
+  (LUFS, fixed-SR) WAV bundle.
+- **P0 integrity** — `sha256`/`b3sum` checksum manifest over the originals; wire
+  `rclone --checksum` off-site; capture a signed consent/rights artifact.
+- **P1** — phonetic-coverage-aware reference selection (align phones, fill gaps);
+  vowel-conditioned formants; emotion/prosody diversity + SER labels; intonation-
+  contour templates per sentence-type so prosody survives translation; spectral
+  tilt + CPPS + articulation rate; embedding-based clone-similarity eval loop.
+- Stamp every derived artifact with schema + tool version + params.
+
 ## Pipelines (all idempotent/resumable)
 
 ```
