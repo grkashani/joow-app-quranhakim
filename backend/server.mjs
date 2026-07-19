@@ -253,6 +253,44 @@ async function getOrCreateTts(tafsir, s, a, lang) {
   })
 }
 
+// ---- Exact-meaning audio: full-ayah TTS of the clean per-ayah translation ----
+// Distinct from the long Bazargan tafsir lecture. Text source: the surah data
+// file data/surah/<n>.json (ayahs[].{ar,fa,en,t{…}}) — a short, faithful meaning
+// of each ayah. Cached at /srv/meaning-tts/<lang>/<c3>/<c3>_<v3>.mp3, served
+// statically by nginx; get-or-create so each (ayah,lang) is paid for once ever.
+const MEANING_DIR = process.env.MEANING_DIR || '/srv/meaning-tts'
+const MEANING_LANGS = new Set(['en', 'fa', 'ar', 'tr', 'fr', 'es', 'de', 'ru'])
+// Translators insert clarifying words in [..]/(..). Two spoken variants keyed by `ann`:
+//   ann=true  -> keep the inserted WORDS but NEVER voice the bracket characters themselves
+//   ann=false -> drop the inserted words entirely (spoken text = literal only)
+const stripAnnChars = (t) => String(t || '').replace(/[[\]()﴾﴿]/g, ' ').replace(/\s+/g, ' ').trim()
+const removeAnn = (t) => String(t || '').replace(/\[[^\]]*\]/g, ' ').replace(/\([^)]*\)/g, ' ').replace(/\s+([،.!؟:;.])/g, '$1').replace(/\s+/g, ' ').trim()
+const meaningPath = (lang, s, a, ann) => path.join(MEANING_DIR, lang, pad3(s), `${pad3(s)}_${pad3(a)}${ann ? '' : '.noann'}.mp3`)
+async function meaningText(s, a, lang) {
+  const raw = await fs.readFile(path.join(WEBROOT, 'data', 'surah', `${s}.json`), 'utf8')
+  const surah = JSON.parse(raw)
+  const ayah = (surah.ayahs || []).find((x) => Number(x.n) === a)
+  if (!ayah) return ''
+  const t = lang === 'fa' ? ayah.fa : lang === 'en' ? ayah.en : ayah.t?.[lang]
+  return String(t || '').trim()
+}
+async function getOrCreateMeaningTts(s, a, lang, ann) {
+  const abs = meaningPath(lang, s, a, ann)
+  const rel = `/meaning-tts/${lang}/${pad3(s)}/${pad3(s)}_${pad3(a)}${ann ? '' : '.noann'}.mp3`
+  try { await fs.access(abs); return { url: rel, cached: true } } catch { /* generate */ }
+  return once('meaning:' + abs, async () => {
+    const raw = await meaningText(s, a, lang)
+    if (!raw) { const err = new Error(`no meaning text for ${s}:${a}/${lang}`); err.statusCode = 400; throw err }
+    const text = ann ? stripAnnChars(raw) : removeAnn(raw)
+    if (!text) { const err = new Error(`empty meaning after annotation strip for ${s}:${a}/${lang}`); err.statusCode = 400; throw err }
+    const mp3 = await ttsSynthesize(text, lang)
+    await fs.mkdir(path.dirname(abs), { recursive: true })
+    const tmp = `${abs}.tmp-${process.pid}`
+    await fs.writeFile(tmp, mp3); await fs.rename(tmp, abs) // atomic
+    return { url: rel, cached: false }
+  })
+}
+
 // ---- Community comments: anyone can comment on a surah (ayah=0) or an ayah ----
 // Append-only NDJSON per (surah, ayah). O_APPEND small writes are atomic on POSIX,
 // so concurrent posts never clobber each other (no read-modify-write race).
@@ -628,6 +666,23 @@ const server = http.createServer(async (req, res) => {
       }
       return json(res, 200, { ok: true, ...(await getOrCreateTts(tafsir, s, a, lang)), model: EL_TTS_MODEL })
     } catch (e) { console.error('[tts-audio]', e?.message || e); return json(res, e?.statusCode === 409 ? 409 : 502, { error: 'audio generation is temporarily unavailable' }) }
+  }
+  // ---- GET /api/meaning-audio?surah=&ayah=&lang= -> { ok, url, cached } ----
+  // Full-ayah spoken "exact meaning" (clean translation). Gated to Fatiha until
+  // ALLOW_ALL_SURAHS=1; 503 {error:'not_ready'} when a clip isn't generated yet.
+  if (url.pathname === '/api/meaning-audio') {
+    try {
+      if (!EL_KEY || !EL_VOICE) return json(res, 503, { error: 'tts not configured: set ELEVENLABS_API_KEY + ELEVENLABS_VOICE_ID' })
+      const s = Number(url.searchParams.get('surah'))
+      const a = Number(url.searchParams.get('ayah'))
+      const lang = cleanLang(url.searchParams.get('lang'))
+      const ann = url.searchParams.get('ann') !== '0' // default: voice the inserted words (brackets stripped)
+      if (!validSurah(s) || !validAyah(a) || !lang || !MEANING_LANGS.has(lang)) return json(res, 400, { error: 'bad params' })
+      if (!SCOPE_ALL && s !== 1 && !(await fileExists(meaningPath(lang, s, a, ann)))) {
+        return json(res, 503, { error: 'not_ready' })
+      }
+      return json(res, 200, { ok: true, ...(await getOrCreateMeaningTts(s, a, lang, ann)), model: EL_TTS_MODEL })
+    } catch (e) { console.error('[meaning-audio]', e?.message || e); return json(res, e?.statusCode === 400 ? 400 : 502, { error: 'audio generation is temporarily unavailable' }) }
   }
   // ---- GET /api/tts-segment?tafsir=&surah=&ayah=&lang=&idx= -> { ok, url, cached } ----
   // Per-sentence TTS clip from the cached transcript's segments[idx].text.

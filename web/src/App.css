@@ -136,6 +136,39 @@
   color: var(--joow-muted, #6b7280);
 }
 
+/* ---------- Surah-level control bar ---------- */
+/* ONE set of controls (Listen / Tafsir / Transcript) governs every ayah. Sticky
+   just under the 52px app top bar so it stays reachable while reading. */
+.jq-surah-controls {
+  position: sticky;
+  top: 52px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0 10px;
+  background: linear-gradient(var(--joow-bg, #f6f7fb) 78%, transparent);
+}
+.jq-surah-btn { font-weight: 700; white-space: nowrap; }
+.jq-surah-listen { min-width: 92px; }
+.jq-surah-btn[aria-busy='true'] { opacity: 0.7; }
+/* Honest Listen note (audio being prepared) / retryable load error. */
+.jq-listen-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--joow-muted, #6b7280);
+  background: var(--joow-surface-soft, #f9fafb);
+  border: 1px solid var(--joow-border, #e5e7eb);
+}
+.jq-listen-note.jq-listen-err { color: var(--joow-danger, #dc2626); }
+.jq-listen-note .jq-retry { flex: none; height: 30px; padding: 0 12px; font-size: 12px; font-weight: 700; }
+
 .jq-controls {
   position: sticky;
   top: 52px;
@@ -326,6 +359,26 @@
   color: var(--joow-muted, #6b7280);
 }
 
+/* ---------- New reader model: tap-to-play + read-along highlight ---------- */
+/* Tapping anywhere on an ayah starts the read-along from that ayah. */
+.jq-ayah { cursor: pointer; }
+/* The one text block being read right now (Arabic during 'recite', the meaning
+   line during 'meaning', the tafsir text during 'tafsir') gets a clear accent
+   highlight. Auto-scroll keeps it centred in the viewport. */
+.jq-reading { background: var(--jq-accent-soft); border-radius: 10px; transition: background 0.15s ease; }
+.jq-ar.jq-reading, .jq-meaning.jq-reading { padding: 6px 8px; }
+.jq-tafsir-panel.jq-reading { background: var(--jq-accent-soft); border-color: var(--jq-accent); }
+/* Static (display-only) basmala for surahs whose ayah 1 isn't the basmala. */
+.jq-basmala-static { cursor: default; }
+.jq-basmala-static:hover { border-color: transparent; background: none; }
+
+/* Translator insertions [..]/(..) shown in a subtly muted tint when "read
+   insertions" is ON, so the eye can tell them from the literal translation. */
+.jq-ann { color: var(--joow-muted, #6b7280); }
+/* Long lines (Arabic, meaning, tafsir) MUST wrap — never widen the layout or
+   clip at the narrow phone widths where the reader lives. */
+.jq-ar, .jq-meaning, .jq-tafsir-text { overflow-wrap: break-word; }
+
 .jq-surah-nav {
   display: flex;
   justify-content: space-between;
@@ -363,57 +416,6 @@
   box-shadow: 0 -6px 18px rgba(17, 24, 39, 0.08);
 }
 
-/* ============ Vertical progress rail ============ */
-/* Slim fixed rail on the right screen edge, below the 52px sticky top bar and
-   above the player bar. Fill = played fraction top->bottom, thumb at the
-   boundary; the whole rail is a drag/click seek surface (pointer events map
-   y -> time). z-index 15: above content, below the player (18), tab bar (20),
-   sheets and the drawer (40/50). */
-.jq-vrail {
-  position: fixed;
-  top: 64px;
-  bottom: calc(62px + 58px + env(safe-area-inset-bottom, 0));
-  right: 5px;
-  width: 6px;
-  z-index: 15;
-  border-radius: 999px;
-  background: var(--jq-accent-soft);
-  cursor: pointer;
-  touch-action: none; /* the rail owns vertical drags (no page scroll while scrubbing) */
-}
-/* 24px hit area without fattening the visible 6px rail */
-.jq-vrail::before {
-  content: '';
-  position: absolute;
-  top: -8px;
-  bottom: -8px;
-  left: -9px;
-  right: -9px;
-}
-.jq-vrail-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: var(--p, 0%);
-  border-radius: 999px;
-  background: var(--jq-accent);
-  pointer-events: none;
-}
-.jq-vrail-thumb {
-  position: absolute;
-  left: 50%;
-  top: var(--p, 0%);
-  width: 14px;
-  height: 14px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: var(--jq-accent);
-  border: 2px solid var(--joow-surface, #fff);
-  box-shadow: 0 1px 4px rgba(17, 24, 39, 0.3);
-  pointer-events: none;
-}
-:root[data-theme='dark'] .jq-vrail { background: var(--joow-border, #263042); }
 .jq-player-row {
   display: flex;
   align-items: center;
@@ -699,6 +701,8 @@
 }
 .jq-drawer-row-value { color: var(--joow-muted, #6b7280); font-size: 13px; }
 .jq-drawer-section { margin: 16px 0; }
+/* One-line caption under a toggle explaining what it does. */
+.jq-section-hint { margin-top: 8px; font-size: 12px; line-height: 1.5; }
 
 /* ============ Sheet + language picker ============ */
 .jq-sheet-overlay {
@@ -755,6 +759,14 @@
   border-radius: 12px; font-size: 14px; line-height: 1.9;
 }
 .jq-transcript p { margin: 6px 0 0; }
+/* Tafsir panel: the Persian commentary text under an ayah (surah-level toggle). */
+.jq-tafsir-panel {
+  margin-top: 12px; padding: 12px 14px;
+  background: var(--joow-surface-soft, #f9fafb);
+  border: 1px solid var(--joow-border, #e5e7eb);
+  border-radius: 12px;
+}
+.jq-tafsir-text { margin: 0; font-size: 15px; line-height: 2; }
 .jq-transcript-src { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: var(--jq-accent); }
 .jq-transcript-src > span { flex: 1 1 auto; }
 .jq-tts-btn { height: 28px; padding: 0 10px; font-size: 12px; flex: none; }
@@ -858,6 +870,8 @@
   font-size: 12px; line-height: 1; background: var(--joow-surface, #fff);
 }
 .jq-lang-row.active .jq-lang-check { background: var(--jq-accent); border-color: var(--jq-accent); color: #fff; }
+/* Meaning language is a SINGLE choice — render the marker as a radio dot. */
+.jq-lang-radio { border-radius: 50%; }
 .jq-lang-native { flex: 0 0 auto; }
 .jq-lang-name { font-size: 12px; color: var(--joow-muted, #6b7280); font-weight: 400; }
 
@@ -917,3 +931,17 @@
 
 /* Reciter picker (drawer) */
 .jq-reciter-select { width: 100%; font-family: inherit; color: inherit; }
+
+/* ============ Phones: reclaim the side gutters ============ */
+/* The reader stacked a shell gutter AND a card gutter, so the sides were double-
+   padded and the reading area felt narrow. On phones trim both to a small safe
+   inset (~10px card edge, ~22px to text) so the reading area uses the width. Text
+   never sits flush to the edge, long Arabic/meaning lines wrap (see overflow-wrap
+   above), and the root's overflow-x:clip already blocks any sideways pan — so no
+   horizontal scrollbar at 320–430px. Only horizontal padding is overridden; the
+   shell keeps its 16px top / 48px bottom. */
+@media (max-width: 480px) {
+  .jq-shell { padding-left: 10px; padding-right: 10px; }
+  .jq-ayah { padding-left: 12px; padding-right: 12px; }
+  .jq-basmala { padding-left: 10px; padding-right: 10px; }
+}

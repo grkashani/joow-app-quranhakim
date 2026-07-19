@@ -6,100 +6,111 @@
   {
    "n": 1,
    "ar": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
-   "fa": "به نام خدای رحمت گستر بر عام و خاص.",
-   "en": "in the name of god, the most compassionate, the most merciful,",
+   "fa": "به نام خداوند رحمتگر مهربان",
+   "en": "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
    "t": {
-    "ar": "باسم الله الذي عمّت رحمته العام والخاص.",
-    "fr": "au nom de dieu, le très compatissant, le très miséricordieux,",
-    "es": "en el nombre de dios, el más compasivo, el más misericordioso,",
-    "de": "Im Namen Gottes, des Allerbarmers, des Barmherzigen.",
-    "ru": "Во имя Бога, Милостивого, Милосердного.",
-    "tr": "Rahman ve Rahim olan Allah'ın adıyla."
+    "ar": "سورة الفاتحة سميت هذه السورة بالفاتحة؛ لأنه يفتتح بها القرآن العظيم، وتسمى المثاني؛ لأنها تقرأ في كل ركعة، ولها أسماء أخر. أبتدئ قراءة القرآن باسم الله مستعينا به، (اللهِ) علم على الرب -تبارك وتعالى- المعبود بحق دون سواه، وهو أخص أسماء الله تعالى، ولا يسمى به غيره سبحانه. (الرَّحْمَنِ) ذي الرحمة العامة الذي وسعت رحمته جميع الخلق، (الرَّحِيمِ) بالمؤمنين، وهما اسمان من أسمائه تعالى، يتضمنان إثبات صفة الرحمة لله تعالى كما يليق بجلاله.",
+    "fr": "Au nom d'Allah, le Tout Miséricordieux, le Très Miséricordieux.",
+    "es": "En el nombre de Dios, el Compasivo con toda la creación, el Misericordioso con los creyentes.",
+    "de": "Im Namen Allahs, des Allerbarmers, des Barmherzigen.",
+    "ru": "Во имя Аллаха, Милостивого, Милосердного!",
+    "tr": "Rahman ve Rahim olan Allah'ın adıyla:"
    }
   },
   {
    "n": 2,
    "ar": "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَـمِينَ",
-   "fa": "حمد به تمامه برای خدایی است که رب جهانیان است.",
-   "en": "praise be to god, the lord of the worlds;",
+   "fa": "ستايش خدايى را كه پروردگار جهانيان،",
+   "en": "[All] praise is [due] to Allah, Lord of the worlds -",
    "t": {
-    "ar": "الحمد كله لله الذي هو رب العالمين.",
-    "fr": "louange à dieu, le seigneur des mondes ;",
-    "es": "alabado sea dios, el señor de los mundos;",
-    "de": "Alles Lob gebührt Gott, dem Herrn der Welten,",
-    "ru": "Хвала Богу, Господу миров,",
-    "tr": "Hamd, alemlerin Rabbi olan Allah'a mahsustur."
+    "ar": "(الحَمْدُ للهِ رَبِّ العَالَمِينَ) الثناء على الله بصفاته التي كلُّها أوصاف كمال، وبنعمه الظاهرة والباطنة، الدينية والدنيوية، وفي ضمنه أَمْرٌ لعباده أن يحمدوه، فهو المستحق له وحده، وهو سبحانه المنشئ للخلق، القائم بأمورهم، المربي لجميع خلقه بنعمه، ولأوليائه بالإيمان والعمل الصالح.",
+    "fr": "Louange à Allah, Seigneur de l'univers.",
+    "es": "Todas las alabanzas son para Dios, Señor de todo cuanto existe,",
+    "de": "(Alles) Lob gehört Allah, dem Herrn der Welten,",
+    "ru": "Хвала Аллаху, Господу миров,",
+    "tr": "Hamd, Alemlerin Rabbi Allah'a mahsustur."
    }
   },
   {
    "n": 3,
    "ar": "الرَّحْمَنِ الرَّحِيمِ",
-   "fa": "همان رحمت گستر بر عام و خاص.",
-   "en": "the most compassionate, the most merciful,",
+   "fa": "رحمتگر مهربان،",
+   "en": "The Entirely Merciful, the Especially Merciful,",
    "t": {
-    "ar": "الذي عمّت رحمته العام والخاص.",
-    "fr": "le très compatissant, le très miséricordieux,",
-    "es": "el más compasivo, el más misericordioso,",
+    "ar": "(الرَّحْمَنِ) الذي وسعت رحمته جميع الخلق، (الرَّحِيمِ)، بالمؤمنين، وهما اسمان من أسماء الله تعالى.",
+    "fr": "Le Tout Miséricordieux, le Très Miséricordieux,",
+    "es": "el Compasivo, el Misericordioso.",
     "de": "dem Allerbarmer, dem Barmherzigen,",
     "ru": "Милостивому, Милосердному,",
-    "tr": "O, Rahman'dır, Rahim'dir."
+    "tr": "O Rahman ve Rahim'dir,"
    }
   },
   {
    "n": 4,
    "ar": "مَالِكِ يَوْمِ الدِّينِ",
-   "fa": "مالک روز جزا.",
-   "en": "master of the day of judgment.",
+   "fa": "[و] خداوند روز جزاست.",
+   "en": "Sovereign of the Day of Recompense.",
    "t": {
-    "ar": "مالك يوم الجزاء.",
-    "fr": "maître du jour du jugement.",
-    "es": "soberano del día del juicio.",
+    "ar": "وهو سبحانه وحده مالك يوم القيامة، وهو يوم الجزاء على الأعمال. وفي قراءة المسلم لهذه الآية في كل ركعة من صلواته تذكير له باليوم الآخر، وحثٌّ له على الاستعداد بالعمل الصالح، والكف عن المعاصي والسيئات.",
+    "fr": "Maître du Jour de la rétribution.",
+    "es": "Soberano absoluto del Día del Juicio Final,",
     "de": "dem Herrscher am Tag des Gerichts.",
-    "ru": "Властителю Дня воздаяния.",
-    "tr": "Din gününün sahibidir."
+    "ru": "Властелину Дня воздаяния!",
+    "tr": "Din Gününün sahibidir."
    }
   },
   {
    "n": 5,
    "ar": "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ",
-   "fa": "تنها تو را عبادت می کنیم و تنها از تو یاری می طلبیم.",
-   "en": "you do we worship and you do we ask for help.",
+   "fa": "[بار الها] تنها تو را مى‌پرستيم، و تنها از تو يارى مى‌جوييم.",
+   "en": "It is You we worship and You we ask for help.",
    "t": {
-    "ar": "إياك وحدك نعبد، وإياك وحدك نستعين.",
-    "fr": "c'est toi que nous adorons et c'est toi dont nous implorons l'aide.",
-    "es": "solo a ti adoramos y solo a ti pedimos ayuda.",
-    "de": "Dir allein dienen wir, und Dich allein bitten wir um Hilfe.",
-    "ru": "Тебе одному мы поклоняемся и Тебя одного просим о помощи.",
-    "tr": "Yalnız sana ibadet ederiz ve yalnız senden yardım dileriz."
+    "ar": "إنا نخصك وحدك بالعبادة، ونستعين بك وحدك في جميع أمورنا، فالأمر كله بيدك، لا يملك منه أحد مثقال ذرة. وفي هذه الآية دليل على أن العبد لا يجوز له أن يصرف شيئًا من أنواع العبادة كالدعاء والاستغاثة والذبح والطواف إلا لله وحده، وفيها شفاء القلوب من داء التعلق بغير الله، ومن أمراض الرياء والعجب، والكبرياء.",
+    "fr": "C'est Toi [Seul] que nous adorons, et c'est Toi [Seul] dont nous implorons secours.",
+    "es": "solo a Ti te adoramos y solo de Ti imploramos ayuda.",
+    "de": "Dir allein dienen wir, und zu Dir allein flehen wir um Hilfe.",
+    "ru": "Тебе одному мы поклоняемся и Тебя одного молим о помощи.",
+    "tr": "Ancak Sana kulluk eder ve yalnız Senden yardım dileriz."
    }
   },
   {
    "n": 6,
    "ar": "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ",
-   "fa": "ما را به راه مستقیم راهبر باش.",
-   "en": "guide us to the straight path,",
+   "fa": "ما را به راه راست هدايت فرما،",
+   "en": "Guide us to the straight path -",
    "t": {
-    "ar": "اهدنا إلى الطريق المستقيم.",
-    "fr": "guide-nous sur le droit chemin,",
-    "es": "guíanos por el camino recto,",
-    "de": "Führe uns den geraden Weg,",
-    "ru": "Веди нас прямым путём,",
-    "tr": "Bizi doğru yola ilet."
+    "ar": "دُلَّنا، وأرشدنا، ووفقنا إلى الطريق المستقيم، وثبتنا عليه حتى نلقاك، وهو الإسلام، الذي هو الطريق الواضح الموصل إلى رضوان الله وإلى جنته، الذي دلّ عليه خاتم رسله وأنبيائه محمد صلى الله عليه وسلم، فلا سبيل إلى سعادة العبد إلا بالاستقامة عليه.",
+    "fr": "Guide-nous dans le droit chemin,",
+    "es": "¡Guíanos por el camino recto!",
+    "de": "Leite uns den geraden Weg,",
+    "ru": "Веди нас прямым путем,",
+    "tr": "Bizi doğru yola eriştir."
    }
   },
   {
    "n": 7,
    "ar": "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ",
-   "fa": "راه کسانی که به انها نعمت دادی، نه مغضوب شدگان و نه گمراهان.",
-   "en": "the path of those whom you have blessed, not of those who incur wrath, nor of those who have gone astray.",
+   "fa": "راه آنان كه گرامى‌شان داشته‌اى، نه [راه‌] مغضوبان، و نه [راه‌] گمراهان.",
+   "en": "The path of those upon whom You have bestowed favor, not of those who have evoked [Your] anger or of those who are astray.",
    "t": {
-    "ar": "طريق الذين أنعمت عليهم، لا الذين غُضب عليهم ولا الضالين.",
-    "fr": "le chemin de ceux que tu as comblés de bienfaits, non de ceux qui encourent la colère, ni de ceux qui s'égarent.",
-    "es": "el camino de aquellos a quienes has bendecido, no el de quienes incurren en la ira, ni el de los extraviados.",
-    "de": "den Weg derer, denen Du Gnade erwiesen hast, nicht derer, die Deinen Zorn erregt haben, und nicht der Irregehenden.",
-    "ru": "путём тех, кого Ты облагодетельствовал, не тех, на кого пал гнев, и не заблудших.",
-    "tr": "Kendilerine nimet verdiğin kimselerin yoluna; gazaba uğrayanların ve sapmışların yoluna değil."
+    "ar": "طريق الذين أنعمت عليهم من النبيين والصدِّيقين والشهداء والصالحين، فهم أهل الهداية والاستقامة، ولا تجعلنا ممن سلك طريق المغضوب عليهم، الذين عرفوا الحق ولم يعملوا به، وهم اليهود، ومن كان على شاكلتهم، والضالين، وهم الذين لم يهتدوا، فضلوا الطريق، وهم النصارى، ومن اتبع سنتهم. وفي هذا الدعاء شفاء لقلب المسلم من مرض الجحود والجهل والضلال، ودلالة على أن أعظم نعمة على الإطلاق هي نعمة الإسلام، فمن كان أعرف للحق وأتبع له، كان أولى بالصراط المستقيم، ولا ريب أن أصحاب رسول الله صلى الله عليه وسلم هم أولى الناس بذلك بعد الأنبياء عليهم السلام، فدلت الآية على فضلهم، وعظيم منزلتهم، رضي الله عنهم. ويستحب للقارئ أن يقول في الصلاة بعد قراءة الفاتحة: (آمين)، ومعناها: اللهم استجب، وليست آية من سورة الفاتحة باتفاق العلماء؛ ولهذا أجمعوا على عدم كتابتها في المصاحف.",
+    "fr": "le chemin de ceux que Tu as comblés de faveurs, non pas de ceux qui ont encouru Ta colère, ni des égarés.",
+    "es": "El camino de los que has colmado con Tus favores, no el de los que cayeron en Tu ira, ni el de los que se extraviaron.",
+    "de": "den Weg derjenigen, denen Du Gunst erwiesen hast, nicht derjenigen, die (Deinen) Zorn erregt haben, und nicht der Irregehenden!",
+    "ru": "путем тех, кого Ты облагодетельствовал, не тех, на кого пал гнев, и не заблудших.",
+    "tr": "Nimete erdirdiğin kimselerin yoluna; gazaba uğrayanların, ya da sapıtanların yoluna değil."
    }
   }
- ]
+ ],
+ "meaningSource": {
+  "fa": "Fooladvand",
+  "en": "Sahih International",
+  "ar": "Al-Muyassar",
+  "tr": "Diyanet",
+  "fr": "Hamidullah",
+  "es": "García",
+  "de": "Bubenheim",
+  "ru": "Kuliev",
+  "note": "Exact-meaning translations. [..]/(..) are translator insertions."
+ }
 }

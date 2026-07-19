@@ -11,46 +11,59 @@ export function setFont(f) { localStorage.setItem('jq.font', f); applyFont(f) }
 
 export function initSettings() { applyTheme(getTheme()); applyFont(getFont()) }
 
-// ---- Reading languages ----
-// ONE persisted list (jq.labLangs) is the single source of truth for language
-// choice. It drives BOTH the translation/meaning lines under each ayah AND the
-// Language Lab languages in the transcript panel. Chosen only in the Settings
-// drawer. The tafsir source language (Persian) is always shown in the lab's
-// sentence view regardless of this list — the tafsir IS Persian.
-const LANGS_KEY = 'jq.labLangs'
-const OLD_SHOW_KEY = 'jq.show' // legacy {fa,en} toggles — migrated then removed
-// Every language with (or receiving) a full Fatiha transcript grid on the
-// server — see /srv/transcripts/bazargan/<lang>/. Kept in i18n LANGUAGES order.
-export const READING_LANG_CHOICES = ['fa', 'en', 'ar', 'tr', 'ur', 'id', 'ms', 'fr', 'es', 'de', 'ru', 'hi', 'bn', 'sw']
-export const READING_LANGS_EVENT = 'jq:reading-langs'
-const cleanLangs = (v) => (Array.isArray(v) ? v.filter((l) => READING_LANG_CHOICES.includes(l)) : [])
+// ---- Reader model settings ----
+// The reader plays a per-ayah SEQUENCE in ONE meaning language and auto-scrolls
+// as it reads. Three persisted settings drive it, all chosen in the Settings
+// drawer:
+//   a. meaningLang      — the SINGLE language the meaning is shown/spoken in
+//   b. reciteArabic     — play the Arabic recitation BEFORE the meaning (default ON)
+//   c. tafsirMode       — 'off' | 'short' | 'long' commentary after the meaning
+//   d. readAnnotations  — include the translator's [..]/(..) clarifying insertions
+//                         in the spoken audio + display (default ON)
+// A single change-event carries the whole settings object (same CustomEvent
+// pattern the old reading-languages list used), so the reader live-updates while
+// the drawer is open.
+// EXACTLY the 8 meaning languages present in the surah data JSON (fa/en + t{}).
+export const MEANING_LANGS = ['en', 'fa', 'ar', 'tr', 'fr', 'es', 'de', 'ru']
+export const READER_SETTINGS_EVENT = 'jq:reader-settings'
 
-export function getReadingLangs() {
-  let stored = null
-  try { stored = JSON.parse(localStorage.getItem(LANGS_KEY)) } catch { /* corrupted */ }
-  const showRaw = localStorage.getItem(OLD_SHOW_KEY)
-  if (showRaw != null) {
-    // One-time migration: old installs stored jq.show {fa,en} + a lab-only list
-    // (which never contained fa). Merge both into the one list.
-    let show = null
-    try { show = JSON.parse(showRaw) } catch { /* corrupted */ }
-    const langs = []
-    if (show?.fa !== false) langs.push('fa')
-    if (show?.en !== false) langs.push('en')
-    for (const l of cleanLangs(stored)) if (!langs.includes(l)) langs.push(l)
-    const out = langs.length ? langs : ['fa', 'en']
-    localStorage.removeItem(OLD_SHOW_KEY)
-    localStorage.setItem(LANGS_KEY, JSON.stringify(out))
-    return out
-  }
-  const v = cleanLangs(stored)
-  return v.length ? v : ['fa', 'en']
+const MEANING_KEY = 'jq.meaningLang'
+const RECITE_KEY = 'jq.reciteArabic'
+const TAFSIR_KEY = 'jq.tafsirMode'
+const ANNOTATIONS_KEY = 'jq.readAnnotations'
+
+export function getMeaningLang() {
+  const v = localStorage.getItem(MEANING_KEY)
+  if (v && MEANING_LANGS.includes(v)) return v
+  // First run: inherit the app content language if it's one we offer, else English.
+  const content = localStorage.getItem('jq.lang')
+  return MEANING_LANGS.includes(content) ? content : 'en'
+}
+export function getReciteArabic() {
+  const v = localStorage.getItem(RECITE_KEY)
+  return v == null ? true : v === '1' // default ON
+}
+export function getTafsirMode() {
+  const v = localStorage.getItem(TAFSIR_KEY)
+  return v === 'short' || v === 'long' ? v : 'off' // default Off
+}
+export function getReadAnnotations() {
+  const v = localStorage.getItem(ANNOTATIONS_KEY)
+  return v == null ? true : v === '1' // default ON — read the translator's [..]/(..) insertions
 }
 
-export function setReadingLangs(langs) {
-  const v = cleanLangs(langs)
-  const out = v.length ? v : ['fa', 'en'] // at least one language is required
-  localStorage.setItem(LANGS_KEY, JSON.stringify(out))
-  window.dispatchEvent(new CustomEvent(READING_LANGS_EVENT, { detail: out }))
-  return out
+export function getReaderSettings() {
+  return { meaningLang: getMeaningLang(), reciteArabic: getReciteArabic(), tafsirMode: getTafsirMode(), readAnnotations: getReadAnnotations() }
+}
+const emit = () => window.dispatchEvent(new CustomEvent(READER_SETTINGS_EVENT, { detail: getReaderSettings() }))
+
+export function setMeaningLang(l) {
+  if (!MEANING_LANGS.includes(l)) return getMeaningLang()
+  localStorage.setItem(MEANING_KEY, l); emit(); return l
+}
+export function setReciteArabic(on) { localStorage.setItem(RECITE_KEY, on ? '1' : '0'); emit(); return !!on }
+export function setReadAnnotations(on) { localStorage.setItem(ANNOTATIONS_KEY, on ? '1' : '0'); emit(); return !!on }
+export function setTafsirMode(m) {
+  const v = m === 'short' || m === 'long' ? m : 'off'
+  localStorage.setItem(TAFSIR_KEY, v); emit(); return v
 }
