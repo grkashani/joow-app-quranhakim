@@ -9,6 +9,11 @@ const supported = typeof caches !== 'undefined'
 
 async function cache() { return caches.open(CACHE) }
 
+// Cache key for a backend-relative path = the on-origin pathname the app actually requests,
+// i.e. base-prefixed on a subpath deploy (/hakim/tafsir/...) and origin-stripped on native.
+// Keeps the download index, deletes, and the service worker's cache-first lookups in agreement.
+const cacheKey = (relPath) => new URL(`${AUDIO_BASE}${relPath}`, location.origin).pathname
+
 // Which surahs are fully downloaded, per type. Returns a Set of `${type}:${surah}`.
 export async function downloadedSet() {
   if (!supported) return new Set()
@@ -20,8 +25,8 @@ export async function downloadedSet() {
   for (const s of index) {
     let tAll = true, rAll = true
     for (let v = 1; v <= s.ttlVer; v++) {
-      if (!paths.has(tafsirPath(s.num, v))) tAll = false
-      if (!paths.has(recitationPath(s.num, v))) rAll = false
+      if (!paths.has(cacheKey(tafsirPath(s.num, v)))) tAll = false
+      if (!paths.has(cacheKey(recitationPath(s.num, v)))) rAll = false
       if (!tAll && !rAll) break
     }
     if (tAll) done.add(`tafsir:${s.num}`)
@@ -77,10 +82,11 @@ export async function downloadAll(onProgress, signal) {
     while (queue.length) {
       if (signal?.aborted) return
       const p = queue.shift()
+      const key = cacheKey(p)
       try {
-        if (!(await c.match(p))) {
+        if (!(await c.match(key))) {
           const res = await fetch(`${AUDIO_BASE}${p}`)
-          if (res.ok) await c.put(p, res.clone())
+          if (res.ok) await c.put(key, res.clone())
           else failed++
         }
       } catch { failed++ }
@@ -132,7 +138,7 @@ export async function deleteSurah(type, surah, ttlVer) {
   if (!supported) return
   const c = await cache()
   const path = type === 'tafsir' ? tafsirPath : recitationPath
-  for (let v = 1; v <= ttlVer; v++) await c.delete(path(surah, v))
+  for (let v = 1; v <= ttlVer; v++) await c.delete(cacheKey(path(surah, v)))
 }
 
 export async function deleteAll() {

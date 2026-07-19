@@ -5,8 +5,12 @@
 //   the cached one so downloaded users don't keep stale transcripts forever.
 // Cache name must match web/src/lib/downloads.js.
 const CACHE = 'jq-audio-v1'
-const AUDIO = ['/recitation/', '/reciters/', '/tafsir/', '/tafsir-tts/']
-const FRESH = ['/transcripts/', '/data/']
+// Deploy base this SW is scoped to, derived from its own URL ('/hakim/sw.js' -> '/hakim',
+// '/sw.js' -> ''). Keeps the cache prefixes aligned with the base-prefixed request paths
+// (e.g. /hakim/recitation/...) without hardcoding the subpath.
+const BASE = self.location.pathname.replace(/\/sw\.js$/, '')
+const AUDIO = ['/recitation/', '/reciters/', '/tafsir/', '/tafsir-tts/'].map((p) => BASE + p)
+const FRESH = ['/transcripts/', '/data/'].map((p) => BASE + p)
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))

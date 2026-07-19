@@ -2,9 +2,9 @@
   "name": "Quran Hakim",
   "short_name": "Quran Hakim",
   "description": "Read, listen, and study the Quran with the Bazargan tafsir — recitation, tafsir audio, and multi-language transcripts.",
-  "id": "/",
-  "start_url": "/",
-  "scope": "/",
+  "id": "/hakim/",
+  "start_url": "/hakim/",
+  "scope": "/hakim/",
   "display": "standalone",
   "orientation": "portrait",
   "lang": "en",
@@ -12,9 +12,9 @@
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+    { "src": "/hakim/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/hakim/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/hakim/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/hakim/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
   ]
 }

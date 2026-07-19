@@ -198,6 +198,49 @@ async function ttsSynthesize(text, lang) {
   return Buffer.concat(parts)
 }
 
+// ---- TTS WITH WORD TIMINGS (for live word-by-word "karaoke" reading) ----
+// ElevenLabs /with-timestamps returns per-character start/end seconds; we group
+// them into words. Costs the same as normal TTS. A words[] sidecar is saved next
+// to the mp3 so the reader can highlight the spoken word + auto-scroll.
+async function ttsElevenLabsTimed(text, langCode) {
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceFor(langCode))}/with-timestamps?output_format=${EL_TTS_FMT}`
+  const body = { text, model_id: EL_TTS_MODEL, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }
+  if (langCode) body.language_code = langCode
+  const res = await fetch(url, { method: 'POST', headers: { 'xi-api-key': EL_KEY, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
+  if (!res.ok) throw new Error(`ElevenLabs TTS(ts) ${res.status}: ${(await res.text()).slice(0, 300)}`)
+  const j = await res.json()
+  const mp3 = Buffer.from(j.audio_base64 || '', 'base64')
+  if (!mp3.length) throw new Error('ElevenLabs TTS(ts) returned empty audio')
+  const a = j.alignment || {}
+  return { mp3, chars: a.characters || [], starts: a.character_start_times_seconds || [], ends: a.character_end_times_seconds || [] }
+}
+// Group per-character alignment into words [{ w, s, e }] (seconds), shifted by `offset`.
+function charsToWords(chars, starts, ends, offset = 0) {
+  const words = []; let cur = '', s = null, e = 0
+  const flush = () => { if (cur.trim()) words.push({ w: cur, s: +((s ?? 0) + offset).toFixed(3), e: +(e + offset).toFixed(3) }); cur = ''; s = null }
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i]
+    if (/\s/.test(c)) flush()
+    else { if (s === null) s = starts[i] ?? 0; cur += c; e = ends[i] ?? e }
+  }
+  flush()
+  return words
+}
+// TTS + word timings. Concatenates chunk audio and offsets each chunk's word
+// times by the running audio duration so timings stay aligned across chunks.
+async function ttsSynthesizeTimed(text, lang) {
+  const chunks = chunkForTts(text)
+  if (!chunks.length) throw new Error('no transcript text to synthesize')
+  const parts = []; let words = []; let offset = 0
+  for (const c of chunks) {
+    const r = await ttsElevenLabsTimed(c, lang)
+    parts.push(r.mp3)
+    words = words.concat(charsToWords(r.chars, r.starts, r.ends, offset))
+    offset += (r.ends.length ? r.ends[r.ends.length - 1] : 0)
+  }
+  return { mp3: Buffer.concat(parts), words, dur: +offset.toFixed(3) }
+}
+
 // Per-sentence clip path: one MP3 per transcript segment (same tree as full-ayah TTS).
 const ttsSegPath = (id, lang, s, a, idx) => path.join(TTS_DIR, id, lang, pad3(s), `${pad3(s)}_${pad3(a)}.seg${idx}.mp3`)
 
@@ -283,10 +326,12 @@ async function getOrCreateMeaningTts(s, a, lang, ann) {
     if (!raw) { const err = new Error(`no meaning text for ${s}:${a}/${lang}`); err.statusCode = 400; throw err }
     const text = ann ? stripAnnChars(raw) : removeAnn(raw)
     if (!text) { const err = new Error(`empty meaning after annotation strip for ${s}:${a}/${lang}`); err.statusCode = 400; throw err }
-    const mp3 = await ttsSynthesize(text, lang)
+    const { mp3, words, dur } = await ttsSynthesizeTimed(text, lang)
     await fs.mkdir(path.dirname(abs), { recursive: true })
     const tmp = `${abs}.tmp-${process.pid}`
     await fs.writeFile(tmp, mp3); await fs.rename(tmp, abs) // atomic
+    // Word-timing sidecar for live karaoke highlight (same path, .words.json).
+    await fs.writeFile(abs.replace(/\.mp3$/, '.words.json'), JSON.stringify({ words, dur, text })).catch(() => {})
     return { url: rel, cached: false }
   })
 }

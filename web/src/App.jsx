@@ -13,7 +13,9 @@ import { LanguageProvider } from './lib/i18n.jsx'
 import './App.css'
 import '../../joow-app-theme.css'
 
-const routerBase = import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL
+// Router basename = the deploy base without its trailing slash ('/hakim' for --base=/hakim/,
+// undefined at root). Trailing slash stripped so both /hakim and /hakim/ resolve to the app root.
+const routerBase = import.meta.env.BASE_URL.replace(/\/$/, '') || undefined
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)

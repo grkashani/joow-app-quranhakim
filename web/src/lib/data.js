@@ -1,13 +1,18 @@
 // Data + audio helpers for JoowQuran.
 // Text corpus lives in /public/data (extracted from the Quran Hakim app).
-// ALL audio (recitation + tafsir) is served from the quranner.com backend.
-//   web build : AUDIO_BASE = '' -> same-origin relative URLs (/recitation, /tafsir); Vite proxies in dev.
-//   android   : VITE_AUDIO_BASE = 'https://quranner.com' -> absolute URLs (WebView isn't same-origin).
+// ALL audio + API (recitation, tafsir, /api) is served same-origin, UNDER the app's
+// deploy base (Vite's import.meta.env.BASE_URL), so a subpath deploy just works.
+//   web build (--base=/hakim/) : AUDIO_BASE = '/hakim' -> /hakim/api, /hakim/recitation, ...
+//   web build (--base=/)       : AUDIO_BASE = ''       -> same-origin root; Vite proxies in dev.
+//   android/capacitor          : VITE_AUDIO_BASE = 'https://quranner.com' -> absolute origin
+//                                (WebView isn't same-origin), overrides the base-derived value.
 
 const base = import.meta.env.BASE_URL || '/'
 
-// Absolute backend origin for audio when the app isn't served from the backend (Capacitor/Android).
-export const AUDIO_BASE = import.meta.env.VITE_AUDIO_BASE || ''
+// Prefix for every audio + /api request. On the web it is derived from the deploy base
+// (BASE_URL) so the app is portable across subpaths (/, /hakim/, ...). Native builds set an
+// explicit absolute origin via VITE_AUDIO_BASE, which takes precedence.
+export const AUDIO_BASE = import.meta.env.VITE_AUDIO_BASE || base.replace(/\/$/, '')
 
 export async function loadSurahIndex() {
   const res = await fetch(`${base}data/surahs.json`)
