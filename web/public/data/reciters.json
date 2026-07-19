@@ -12,5 +12,11 @@
   { "id": "maher", "nameEn": "Maher Al-Muaiqly", "nameFa": "ماهر المعیقلی", "pattern": "/reciters/MaherAlMuaiqly128kbps/{c3}{v3}.mp3" },
   { "id": "tunaiji", "nameEn": "Khalifa Al-Tunaiji", "nameFa": "خلیفه الطنیجی", "pattern": "/reciters/khalefa_al_tunaiji_64kbps/{c3}{v3}.mp3" },
   { "id": "basfar", "nameEn": "Abdullah Basfar", "nameFa": "عبدالله بصفر", "pattern": "/reciters/Abdullah_Basfar_192kbps/{c3}{v3}.mp3" },
-  { "id": "sudais", "nameEn": "Abdurrahmaan As-Sudais", "nameFa": "عبدالرحمان سدیس", "pattern": "/reciters/Abdurrahmaan_As-Sudais_192kbps/{c3}{v3}.mp3" }
+  { "id": "sudais", "nameEn": "Abdurrahmaan As-Sudais", "nameFa": "عبدالرحمان سدیس", "pattern": "/reciters/Abdurrahmaan_As-Sudais_192kbps/{c3}{v3}.mp3" },
+  { "id": "basit", "nameEn": "Abdul Basit Abd-us-Samad (Murattal)", "nameFa": "عبدالباسط", "pattern": "/reciters/Abdul_Basit_Murattal_64kbps/{c3}{v3}.mp3" },
+  { "id": "basit_mujawwad", "nameEn": "Abdul Basit Abd-us-Samad (Mujawwad)", "nameFa": "عبدالصمد", "pattern": "/reciters/Abdul_Basit_Mujawwad_128kbps/{c3}{v3}.mp3" },
+  { "id": "yaser_salamah", "nameEn": "Yaser Salamah", "nameFa": "یاسر سلامت", "pattern": "/reciters/Yaser_Salamah_128kbps/{c3}{v3}.mp3" },
+  { "id": "minshawi", "nameEn": "Mohamed Siddiq Al-Minshawi (Murattal)", "nameFa": "منشاوی", "pattern": "/reciters/Minshawy_Murattal_128kbps/{c3}{v3}.mp3" },
+  { "id": "tablawi", "nameEn": "Mohammad At-Tablawi", "nameFa": "محمد طبلاوی", "pattern": "/reciters/Mohammad_al_Tablaway_128kbps/{c3}{v3}.mp3" },
+  { "id": "dussary", "nameEn": "Yasser Ad-Dussary", "nameFa": "یاسر الدوسری", "pattern": "/reciters/Yasser_Ad-Dussary_128kbps/{c3}{v3}.mp3" }
 ]
