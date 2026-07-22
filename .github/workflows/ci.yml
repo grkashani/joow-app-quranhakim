@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: joow-app-quranhakim-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify source and runtime
+    runs-on: [self-hosted, Linux, X64, docker, joow-gha]
+    timeout-minutes: 30
+    steps:
+      - name: Check out complete standalone history
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            backend/package-lock.json
+
+      - name: Verify exact private SDK archive
+        working-directory: web
+        run: >-
+          echo
+          "804599efcdfc5dace26bf9bd25fbdab07770b01962d0de1b20198fcc3e3b359d  vendor/joow-sdk-0.8.0.tgz"
+          | sha256sum -c -
+
+      - name: Install and test the zero-dependency Node API
+        working-directory: backend
+        run: |
+          npm ci
+          npm test
+
+      - name: Install, test, and audit the reader SPA
+        working-directory: web
+        env:
+          VITE_AUDIO_BASE: ""
+          VITE_JOOW_HOST_ORIGIN: https://stage.joow.org
+        run: |
+          npm ci
+          npm test
+          npm audit --audit-level=high
+
+      - name: Build and smoke-test stage-shaped runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="joow-app-quranhakim-ci:${{ github.sha }}"
+          container="joow-app-quranhakim-ci-${{ github.run_id }}"
+          cleanup() {
+            status=$?
+            if (( status != 0 )); then
+              docker logs "$container" 2>/dev/null || true
+            fi
+            docker rm --force "$container" >/dev/null 2>&1 || true
+          }
+          wait_for_health() {
+            for attempt in {1..30}; do
+              if docker exec "$container" wget -qO- http://127.0.0.1:8080/health >/dev/null; then
+                return 0
+              fi
+              sleep 1
+            done
+            return 1
+          }
+          trap cleanup EXIT
+
+          # One Dockerfile at the repo root builds the whole app: the Vite SPA
+          # (web/, base-pathed at the apphost mount) plus the zero-dependency
+          # Node API (backend/), served together on :8080.
+          docker build \
+            --pull \
+            --platform linux/amd64 \
+            --build-arg VITE_AUDIO_BASE= \
+            --build-arg VITE_JOOW_HOST_ORIGIN=https://stage.joow.org \
+            --label org.opencontainers.image.revision=${{ github.sha }} \
+            --tag "$image" \
+            .
+
+          test "$(docker image inspect --format '{{.Architecture}}' "$image")" = amd64
+          # The apphost refuses a named USER, so the image must declare uid 1001.
+          user="$(docker image inspect --format '{{.Config.User}}' "$image")"
+          [[ "$user" =~ ^1001(:[1-9][0-9]*)?$ ]]
+          health="$(docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$image")"
+          test -n "$health"
+          test "$health" != null
+
+          # Everything the container writes lives under the /tmp tmpfs.
+          docker run --detach \
+            --name "$container" \
+            --read-only \
+            --tmpfs /tmp:rw,nosuid,size=32m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --env JOOW_AUDIO_ORIGIN=https://quranner.com \
+            "$image"
+
+          wait_for_health
+          docker exec "$container" wget -qO- http://127.0.0.1:8080/ >/dev/null

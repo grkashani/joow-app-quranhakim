@@ -1,0 +1,107 @@
+name: Release immutable runtime image
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: joow-app-quranhakim-image-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/shooji-senex/joow-app-quranhakim
+
+jobs:
+  publish:
+    name: Publish stage linux/amd64
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, docker, joow-gha]
+    timeout-minutes: 35
+    steps:
+      - name: Check out the CI-verified commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Log in to the private GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Preserve commit-tag immutability on reruns
+        id: existing
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${IMAGE}:stage-${{ github.event.workflow_run.head_sha }}"
+          if digest="$(docker buildx imagetools inspect "$tag" --format '{{.Manifest.Digest}}' 2>/dev/null)"; then
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            printf 'exists=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          else
+            printf 'exists=false\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push commit-addressed image
+        id: build
+        if: steps.existing.outputs.exists != 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          pull: true
+          push: true
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            VITE_AUDIO_BASE=
+            VITE_JOOW_HOST_ORIGIN=https://stage.joow.org
+          tags: ${{ env.IMAGE }}:stage-${{ github.event.workflow_run.head_sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.version=stage-${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.title=Quran Hakim
+
+      - name: Verify and record immutable release coordinates
+        shell: bash
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest || steps.existing.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          reference="${IMAGE}@${IMAGE_DIGEST}"
+          docker pull --platform linux/amd64 "$reference"
+          test "$(docker image inspect --format '{{.Architecture}}' "$reference")" = amd64
+          # The manifest's runtime.revision must equal this label.
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$reference")" = "${{ github.event.workflow_run.head_sha }}"
+          user="$(docker image inspect --format '{{.Config.User}}' "$reference")"
+          [[ "$user" =~ ^1001(:[1-9][0-9]*)?$ ]]
+          health="$(docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$reference")"
+          test -n "$health"
+          test "$health" != null
+          {
+            echo "### Quran Hakim stage runtime"
+            echo
+            echo "- Commit: \`${{ github.event.workflow_run.head_sha }}\`"
+            echo "- Platform: \`linux/amd64\`"
+            echo "- Tag: \`${IMAGE}:stage-${{ github.event.workflow_run.head_sha }}\`"
+            echo "- Digest: \`$IMAGE_DIGEST\`"
+            echo "- Supply chain: BuildKit provenance and SBOM attached in private GHCR"
+            echo "- Deployment: none; host admission requires a separate digest-pinned review"
+          } >> "$GITHUB_STEP_SUMMARY"
