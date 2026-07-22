@@ -1,0 +1,66 @@
+# Quran Hakim — the founder's Quran reader (read, listen, study), promoted from a
+# catalog tile to a RUNNABLE apphost mini-app. The reader (React SPA + a
+# zero-dependency Node API) is packaged as a single digest-pinned image that
+# serves the SPA and reverse-proxies /api to the Node API; heavy recitation /
+# tafsir audio stays on the existing origin (https://quranner.com, baked as the
+# image's JOOW_AUDIO_ORIGIN default) and is never baked into the image.
+appId: quranhakim
+name: Quran Hakim
+version: 0.2.0
+sdkContractVersion: 2.0.0
+trustTier: partner
+catalog: false
+
+runtime:
+  image: ghcr.io/shooji-senex/joow-app-quranhakim@sha256:85f9b70aef269fa56709f4795841b5236b2f820aa3d85fa7c49ccfa6f10ba33f
+  revision: c1ecebc3db5e0c59b2a790afdb4805e69499eebb
+  port: 8080
+  env:
+    - TZ
+    - JOOW_QURANHAKIM_PROXY_PROOF_SECRET
+  resources: { cpu: "0.5", memory: 512Mi }
+  healthPath: /health
+  netclass: http-standard
+
+capabilities: [identity.read]
+capabilityJustifications:
+  identity.read: Show the signed-in member's public display name and avatar in the reader header; no private contact attributes are requested.
+
+cards:
+  publishes: []
+  schemas: {}
+
+data:
+  emits: []
+  consentTier: T0
+
+communityScope: approved
+apiBase: /api/joow/apps/quranhakim
+
+proxyProof:
+  secretEnv: JOOW_QURANHAKIM_PROXY_PROOF_SECRET
+
+review:
+  status: approved
+  notes: >-
+    Quran Hakim runnable prod release. Single lean image (nginx static SPA +
+    reverse-proxy to a zero-dependency Node API on :8787; container :8080;
+    /health → 200). The SPA is built base-pathed at the mount
+    /api/joow/apps/quranhakim/ and embeds the @joow/sdk frame bridge: when
+    mounted it exchanges the shell's one-time launch code and mirrors the
+    SHELL-owned appearance (theme/lang/dir) + public identity, hiding its own
+    sign-in and language pickers. Heavy recitation/tafsir/transcript audio is
+    NOT baked into the image — it stays on the existing origin
+    (https://quranner.com), proxied by the container. The app requests only
+    identity.read (public display projection), publishes no cards, and emits no
+    analytics. Image sha256:85f9b70a was host-built linux/amd64 from revision
+    c1ecebc with the org.opencontainers.image.revision label matching, runs as
+    numeric UID 1001, and smoke-passed under the enforced read-only rootfs +
+    32 MB /tmp tmpfs + cap-drop-ALL constraints.
+
+presentation:
+  icon: book-open
+  color: "#15803D"
+  tagline: "Read, listen, and study the Quran"
+  taglineFa: "قرآن حکیم — خواندن، شنیدن و تدبر"
+  category: quran

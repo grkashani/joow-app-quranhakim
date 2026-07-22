@@ -1,0 +1,71 @@
+# Quran Hakim — STAGE runnable manifest. Same single lean image shape as prod
+# (nginx static SPA + reverse-proxy to a zero-dependency Node API on :8787;
+# container :8080; /health -> 200), rebuilt for the STAGE shell origin:
+# VITE_JOOW_HOST_ORIGIN=https://stage.joow.org is baked at build time and pinned
+# into sdk.attachBridge({allowedHostOrigin}), so the prod image (which bakes
+# https://joow.org) cannot be reused here.
+#
+# TRUST TIER: partner (stage parity fix; prod still declares first_party). The
+# app reads only the public identity projection (display name + avatar) through
+# the SDK bridge and verifies X-Joow-Proxy-Proof, so the partner-tier pseudonym
+# boundary costs it nothing.
+#
+# Heavy recitation/tafsir/transcript audio is NOT baked into the image — it stays
+# on the existing external origin (https://quranner.com, the image default for
+# JOOW_AUDIO_ORIGIN) and is proxied by the container.
+appId: quranhakim
+name: Quran Hakim
+version: 0.2.0
+sdkContractVersion: 2.0.0
+trustTier: partner
+catalog: false
+
+runtime:
+  image: ghcr.io/shooji-senex/joow-app-quranhakim@sha256:9363de2ce7a92c00762c3284f2117a45a41d818c124537ba0c9351ff80fc6d6a
+  revision: 61f3a64d15a330f3c663808f35b3226efe3f569a
+  port: 8080
+  env:
+    - TZ
+    - JOOW_QURANHAKIM_PROXY_PROOF_SECRET
+  resources: { cpu: "0.5", memory: 512Mi }
+  healthPath: /health
+  netclass: http-standard
+
+capabilities: [identity.read]
+capabilityJustifications:
+  identity.read: Show the signed-in member public display name and avatar in the reader header; no private contact attributes are requested.
+
+cards:
+  publishes: []
+  schemas: {}
+
+data:
+  emits: []
+  consentTier: T0
+
+communityScope: approved
+apiBase: /api/joow/apps/quranhakim
+
+proxyProof:
+  secretEnv: JOOW_QURANHAKIM_PROXY_PROOF_SECRET
+
+review:
+  status: approved
+  notes: >-
+    Quran Hakim stage release. Image sha256:9363de2c was host-built linux/amd64
+    from revision 61f3a64d (main, clean tree) with build args VITE_AUDIO_BASE=""
+    and VITE_JOOW_HOST_ORIGIN=https://stage.joow.org, carries
+    org.opencontainers.image.revision=61f3a64d..., runs as numeric UID 1001, and
+    smoke-passed under read-only rootfs + 32 MB /tmp tmpfs + cap-drop-ALL
+    (/health 200 {"ok":true}, / 200 SPA HTML). Frontend vendors @joow/sdk
+    0.9.0-rc.3; the manifest still declares sdkContractVersion 2.0.0 because the
+    app publishes no tools and no knowledge (the registry only requires 2.1.0 for
+    those) — a deliberate 2.1.0 bump is a separate decision. The app requests only
+    identity.read, publishes no cards, and emits no analytics.
+
+presentation:
+  icon: book-open
+  color: "#15803D"
+  tagline: "Read, listen, and study the Quran"
+  taglineFa: "قرآن حکیم — خواندن، شنیدن و تدبر"
+  category: quran
