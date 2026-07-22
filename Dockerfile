@@ -61,7 +61,12 @@ ENV WEBROOT=/app/dist \
     JOOW_AUDIO_ORIGIN=https://quranner.com \
     NODE_ENV=production
 
-USER node
+# Numeric, non-root UID is MANDATORY: the JooW apphost's validateContainerUser
+# refuses a named user, because an image-controlled /etc/passwd could remap the
+# name to uid 0. Everything the container writes lives under the /tmp tmpfs
+# (see docker-entrypoint.sh), and /app + /app/dist are world-readable, so the
+# uid need not own them.
+USER 1001
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=8s --retries=5 \
   CMD wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1 || exit 1
