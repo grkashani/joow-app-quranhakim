@@ -1,0 +1,12 @@
+{
+  "name": "joowquran-backend",
+  "private": true,
+  "type": "module",
+  "description": "Quran Hakim reader backend (server.mjs) + the new provider/artifact-store layer (Phase 2/3 scaffolding, unwired).",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}

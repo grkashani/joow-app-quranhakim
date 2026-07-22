@@ -10,8 +10,12 @@
 // hit on a cache miss (to generate), then subsequent reads are static + instant.
 import http from 'node:http'
 import fs from 'node:fs/promises'
+import { createReadStream, createWriteStream } from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { createLayout } from './store/layout.mjs'
+import { createArtifactStore } from './store/artifact-store.mjs'
+import { recordGeneratedClip } from './store/record.mjs'
 
 const PORT = Number(process.env.PORT || 8787)
 const EL_KEY = process.env.ELEVENLABS_API_KEY || ''
@@ -29,6 +33,23 @@ const COMMENTS_DIR = process.env.COMMENTS_DIR || '/srv/comments'
 const EL_VOICE = process.env.ELEVENLABS_VOICE_ID || ''
 const EL_TTS_MODEL = process.env.ELEVENLABS_TTS_MODEL || 'eleven_v3'
 const EL_TTS_FMT = process.env.ELEVENLABS_TTS_OUTPUT_FORMAT || 'mp3_44100_128'
+
+// ---- Lossless provenance store (opt-in: USE_PROVIDER_LAYER=1) ----
+// When enabled, every FRESHLY-generated clip is ALSO recorded as a versioned,
+// content-hashed artifact (word-timing + provenance sidecars + a pointer to the
+// served URL) under ARTIFACT_ROOT — the "never lose / always improve" history.
+// This does NOT change anything served: the canonical mp3 stays on its flat /srv
+// path (served by nginx). It is BEST-EFFORT — a store error is logged and ignored,
+// never blocking or failing generation. Flag off (default) = byte-identical to before.
+const USE_PROVIDER_LAYER = process.env.USE_PROVIDER_LAYER === '1'
+const ARTIFACT_ROOT = process.env.ARTIFACT_ROOT || path.join(SRV, 'artifacts')
+const _layout = createLayout({ SRV, TRANSCRIPTS, TTS_DIR, MEANING_DIR: process.env.MEANING_DIR || '/srv/meaning-tts' })
+const _artifacts = USE_PROVIDER_LAYER ? createArtifactStore({ root: ARTIFACT_ROOT }) : null
+async function recordClip(args) {
+  if (!_artifacts) return
+  try { await recordGeneratedClip(_artifacts, _layout, args) }
+  catch (e) { console.error('[artifact-record] skipped:', e?.message || e) }
+}
 
 // ---- Auth: Apple + Google sign-in, HS256 sessions, file-based user store ----
 const SESSION_SECRET = process.env.SESSION_SECRET || ''                       // SECRET — openssl rand -hex 32
@@ -371,6 +392,7 @@ async function getOrCreateSegTts(tafsir, s, a, lang, idx) {
     await fs.writeFile(abs.replace(/\.mp3$/, '.words.json'), JSON.stringify({ words, dur, text: said })).catch(() => {})
     // v2 provenance sidecar (raw alignments + request ids + credits).
     await fs.writeFile(abs.replace(/\.mp3$/, '.gen.json'), JSON.stringify({ ...gen, kind: 'tafsir-seg', tafsir: tafsir.id, surah: s, ayah: a, segIdx: idx })).catch(() => {})
+    await recordClip({ kind: 'tafsir-seg', id: tafsir.id, lang, s, a, seg: idx, provider: 'elevenlabs-tts', model: EL_TTS_MODEL, sourceText: said, extra: { credits: gen?.credits }, sidecars: { 'words.json': JSON.stringify({ words, dur, text: said }), 'gen.json': JSON.stringify(gen) } })
     return { ok: true, url: rel, cached: false }
   })
 }
@@ -400,6 +422,7 @@ async function getOrCreateTts(tafsir, s, a, lang) {
     await fs.writeFile(abs.replace(/\.mp3$/, '.words.json'), JSON.stringify({ words, dur, text })).catch(() => {})
     // v2 provenance sidecar (raw alignments + request ids + credits).
     await fs.writeFile(abs.replace(/\.mp3$/, '.gen.json'), JSON.stringify({ ...gen, kind: 'tafsir', tafsir: tafsir.id, surah: s, ayah: a })).catch(() => {})
+    await recordClip({ kind: 'tafsir', id: tafsir.id, lang, s, a, provider: 'elevenlabs-tts', model: EL_TTS_MODEL, sourceText: text, extra: { credits: gen?.credits }, sidecars: { 'words.json': JSON.stringify({ words, dur, text }), 'gen.json': JSON.stringify(gen) } })
     return { url: rel, cached: false }
   })
 }
@@ -446,6 +469,7 @@ async function getOrCreateMeaningTts(s, a, lang, ann) {
     await fs.writeFile(abs.replace(/\.mp3$/, '.words.json'), JSON.stringify({ words, dur, text })).catch(() => {})
     // v2 provenance sidecar (raw alignments + request ids + credits).
     await fs.writeFile(abs.replace(/\.mp3$/, '.gen.json'), JSON.stringify({ ...gen, kind: 'meaning', surah: s, ayah: a, ann: !!ann, sourceText: raw })).catch(() => {})
+    await recordClip({ kind: 'meaning', lang, s, a, ann, provider: 'elevenlabs-tts', model: EL_TTS_MODEL, sourceText: text, extra: { credits: gen?.credits }, sidecars: { 'words.json': JSON.stringify({ words, dur, text }), 'gen.json': JSON.stringify(gen) } })
     return { url: rel, cached: false }
   })
 }
@@ -491,6 +515,60 @@ function rateOk(ip) {
   arr.push(now); postHits.set(ip, arr); return true
 }
 const clientIp = (req) => (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+
+// ---- Rich-media contributions (comment attachments) -> knowledge-graph corpus ----
+// Any comment may carry image / audio / video / file attachments. Each upload is
+// streamed to /srv/contributions/<c3>/<a3>/<id>.<ext>; a KG corpus record (tagged
+// by ayah, author, media type) is written so every user contribution can feed a
+// future QuranGPT. Voice/video are queued for transcription. Nothing is deleted.
+const CONTRIB_DIR = process.env.CONTRIB_DIR || '/srv/contributions'
+const CONTRIB_MAX = Number(process.env.CONTRIB_MAX_BYTES || 25_000_000) // 25 MB / file
+const MIME_KIND = [
+  [/^image\/(jpeg|png|webp|gif)$/, 'image'],
+  [/^audio\/(mpeg|mp4|aac|ogg|webm|wav|x-m4a|m4a)$/, 'audio'],
+  [/^video\/(mp4|webm|quicktime|ogg)$/, 'video'],
+  [/^application\/pdf$/, 'file'],
+]
+const EXT_FOR = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+  'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a', 'audio/aac': 'aac', 'audio/ogg': 'ogg', 'audio/webm': 'weba', 'audio/wav': 'wav',
+  'video/mp4': 'mp4', 'video/webm': 'webm', 'video/quicktime': 'mov', 'video/ogg': 'ogv', 'application/pdf': 'pdf' }
+const MIME_FOR = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', weba: 'audio/webm', wav: 'audio/wav',
+  mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', ogv: 'video/ogg', pdf: 'application/pdf' }
+const kindForMime = (m) => { for (const [re, k] of MIME_KIND) if (re.test(m)) return k; return null }
+const contribId = () => crypto.randomBytes(9).toString('base64url')
+// The ref shape the upload endpoint returns and comments must reference.
+const CONTRIB_RE = /^\/api\/contrib\/(\d{3})\/(\d{3})\/([A-Za-z0-9_-]{6,40})\.([a-z0-9]{2,4})$/
+
+// Stream the raw request body to `dest`, capping bytes; no in-memory buffering.
+function streamToFile(req, dest, maxBytes) {
+  return new Promise((resolve, reject) => {
+    fs.mkdir(path.dirname(dest), { recursive: true }).then(() => {
+      const tmp = dest + '.part'
+      const ws = createWriteStream(tmp)
+      let n = 0, bad = null
+      req.on('data', (c) => { n += c.length; if (n > maxBytes && !bad) { bad = new Error('too large'); req.destroy(); ws.destroy() } })
+      req.on('error', (e) => { bad = bad || e })
+      ws.on('error', (e) => { bad = bad || e })
+      ws.on('close', () => {
+        if (bad) { fs.unlink(tmp).catch(() => {}); return reject(bad) }
+        fs.rename(tmp, dest).then(() => resolve(n)).catch(reject)
+      })
+      req.pipe(ws)
+    }).catch(reject)
+  })
+}
+
+// One KG corpus record per media item (transcript filled later by the pipeline).
+async function kgRecord(rec) {
+  const dir = path.join(CONTRIB_DIR, '_corpus', pad3(rec.surah))
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(path.join(dir, rec.id + '.json'), JSON.stringify(rec))
+  if (rec.type === 'audio' || rec.type === 'video') {
+    const q = path.join(CONTRIB_DIR, '_transcribe'); await fs.mkdir(q, { recursive: true })
+    await fs.writeFile(path.join(q, rec.id + '.job'), JSON.stringify({ id: rec.id, surah: rec.surah, ayah: rec.ayah, file: rec.file, type: rec.type }))
+  }
+}
 
 // ---- User activity log: raw events in, derived reports out ----
 // POST /api/activity  { did, userId?, shellName?, events:[{v,type,ts,tzo,...}] }
@@ -1167,6 +1245,59 @@ const server = http.createServer(async (req, res) => {
       try { res.destroy() } catch { /* stream already broken */ }
     }
   }
+  // ---- POST /api/contrib/upload : stream ONE media file, return its ref ----
+  // Query: ?surah=&ayah=&name=&dur=   Body: raw bytes (Content-Type = the mime).
+  if (url.pathname === '/api/contrib/upload' && req.method === 'POST') {
+    try {
+      if (!rateOk(clientIp(req))) return json(res, 429, { error: 'too many uploads, slow down' })
+      const s = Number(url.searchParams.get('surah')), a = Number(url.searchParams.get('ayah')) || 0
+      if (!(s >= 1 && s <= 114) || a < 0 || a > 300) return json(res, 400, { error: 'bad params' })
+      const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
+      const kind = kindForMime(mime)
+      if (!kind) return json(res, 415, { error: 'unsupported media type' })
+      const ext = EXT_FOR[mime] || 'bin'
+      const id = contribId()
+      const rel = `/api/contrib/${pad3(s)}/${pad3(a)}/${id}.${ext}`
+      const dest = path.join(CONTRIB_DIR, pad3(s), pad3(a), `${id}.${ext}`)
+      let bytes
+      try { bytes = await streamToFile(req, dest, CONTRIB_MAX) }
+      catch (e) { return json(res, /too large/.test(String(e.message)) ? 413 : 500, { error: String(e.message || e) }) }
+      const name = clean(url.searchParams.get('name'), 120) || `${kind}.${ext}`
+      const dur = Number(url.searchParams.get('dur')) || undefined
+      const authed = await requireUser(req)
+      await fs.writeFile(dest.replace(/\.[a-z0-9]+$/, '.meta.json'), JSON.stringify({
+        id, surah: s, ayah: a, type: kind, mime, name, dur, bytes,
+        by: authed ? { id: authed.id, name: authed.name } : null,
+        ipHash: crypto.createHash('sha256').update(clientIp(req)).digest('hex').slice(0, 16),
+        at: new Date().toISOString(),
+      })).catch(() => {})
+      return json(res, 200, { id, url: rel, type: kind, mime, name, ...(dur ? { dur } : {}), bytes })
+    } catch (e) { return json(res, 400, { error: String(e.message || e) }) }
+  }
+
+  // ---- GET /api/contrib/<c3>/<a3>/<file> : stream a contribution (Range-aware) ----
+  if (url.pathname.startsWith('/api/contrib/') && req.method === 'GET') {
+    const m = url.pathname.match(CONTRIB_RE)
+    if (!m) return json(res, 404, { error: 'not found' })
+    const [, c3, a3, , ext] = m
+    const abs = path.join(CONTRIB_DIR, c3, a3, path.basename(url.pathname))
+    if (!abs.startsWith(CONTRIB_DIR + path.sep)) return json(res, 400, { error: 'bad path' }) // traversal guard
+    let st; try { st = await fs.stat(abs) } catch { return json(res, 404, { error: 'not found' }) }
+    const mime = MIME_FOR[ext] || 'application/octet-stream'
+    const base = { 'content-type': mime, 'cache-control': 'public, max-age=31536000, immutable', 'accept-ranges': 'bytes' }
+    const range = req.headers.range
+    if (range) {
+      const mm = /bytes=(\d*)-(\d*)/.exec(range) || []
+      let start = mm[1] ? parseInt(mm[1], 10) : 0
+      let end = mm[2] ? parseInt(mm[2], 10) : st.size - 1
+      if (isNaN(start) || isNaN(end) || start > end || end >= st.size) { start = 0; end = st.size - 1 }
+      res.writeHead(206, { ...base, 'content-range': `bytes ${start}-${end}/${st.size}`, 'content-length': end - start + 1 })
+      return createReadStream(abs, { start, end }).pipe(res)
+    }
+    res.writeHead(200, { ...base, 'content-length': st.size })
+    return createReadStream(abs).pipe(res)
+  }
+
   if (url.pathname === '/api/comments') {
     // GET ?surah=&ayah=            -> { comments: [...] }
     // GET ?surah=&counts=1         -> { counts: { <ayah>: n } }  (ayah 0 = surah-level)
@@ -1186,16 +1317,31 @@ const server = http.createServer(async (req, res) => {
         const s = Number(d.surah), a = Number(d.ayah) || 0
         if (!(s >= 1 && s <= 114) || a < 0 || a > 300) return json(res, 400, { error: 'bad params' })
         const text = clean(d.text, 2000)
-        if (text.length < 1) return json(res, 400, { error: 'empty comment' })
+        // Rich-media: validate each ref is an upload the server minted for THIS ayah.
+        const media = Array.isArray(d.media) ? d.media.slice(0, 6).map((mi) => {
+          const u = String((mi && mi.url) || ''); const mm = u.match(CONTRIB_RE)
+          if (!mm || Number(mm[1]) !== s || Number(mm[2]) !== a) return null
+          return { id: clean(mi.id, 40), url: u, type: clean(mi.type, 12), mime: clean(mi.mime, 60), name: clean(mi.name, 120), ...(mi.dur ? { dur: Number(mi.dur) } : {}) }
+        }).filter(Boolean) : []
+        if (text.length < 1 && media.length === 0) return json(res, 400, { error: 'empty comment' })
         // Attribution: a valid Bearer token OVERRIDES any client-supplied name/verified flag.
         // requireUser refuses insecure transport and costs invalid-token fuzzing (verdict #24-26, #31).
         const authed = await requireUser(req)
-        const baseC = { id: crypto.randomUUID(), text, at: new Date().toISOString() }
+        const baseC = { id: crypto.randomUUID(), text, at: new Date().toISOString(), ...(media.length ? { media } : {}) }
         const comment = authed
           ? { ...baseC, name: authed.name, userId: authed.id,
               ...(authed.picture ? { picture: authed.picture } : {}), verified: true }
           : { ...baseC, name: clean(d.name, 48) || 'Anonymous', verified: false }
         await appendComment(s, a, comment)
+        // Feed the knowledge-graph corpus: one record per media item, tagged by ayah.
+        for (const mi of media) {
+          const mm = mi.url.match(CONTRIB_RE)
+          await kgRecord({ id: mi.id || contribId(), commentId: comment.id, surah: s, ayah: a,
+            type: mi.type, mime: mi.mime, url: mi.url, file: `${mm[1]}/${mm[2]}/${path.basename(mi.url)}`,
+            name: mi.name, ...(mi.dur ? { dur: mi.dur } : {}), text,
+            by: comment.userId ? { id: comment.userId, name: comment.name } : { name: comment.name },
+            transcript: null, consent: true, at: comment.at }).catch(() => {})
+        }
         return json(res, 200, { comment })
       }
       return json(res, 405, { error: 'method not allowed' })
