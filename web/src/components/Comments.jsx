@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { fetchComments, postComment } from '../lib/comments.js'
+import { fetchComments, postComment, uploadContrib, mediaSrc } from '../lib/comments.js'
 import { useI18n } from '../lib/i18n.jsx'
 import { isFramed, getShellUser, SHELL_USER_EVENT } from '../lib/framed.js'
 import { cachedUser } from '../lib/auth.js'
@@ -25,15 +25,29 @@ function ago(iso, t) {
   return new Date(iso).toLocaleDateString()
 }
 
+// Render one stored media attachment inline (image / audio / video / file).
+function Media({ m }) {
+  const src = mediaSrc(m.url)
+  if (m.type === 'image') return <img className="jq-cmedia jq-cmedia-img" src={src} alt={m.name || ''} loading="lazy" />
+  if (m.type === 'audio') return <audio className="jq-cmedia jq-cmedia-audio" src={src} controls preload="none" />
+  if (m.type === 'video') return <video className="jq-cmedia jq-cmedia-video" src={src} controls preload="none" playsInline />
+  return <a className="jq-cmedia jq-cmedia-file" href={src} target="_blank" rel="noopener noreferrer">📎 {m.name || 'file'}</a>
+}
+
 // A comments thread for a surah (ayah = 0) or a single ayah.
 export default function Comments({ surah, ayah = 0, onCount }) {
   const { t } = useI18n()
   const [list, setList] = useState(null) // null = loading
   const [name, setName] = useState(initialName)
   const [text, setText] = useState('')
+  // Draft attachments (uploaded refs) staged before the comment is posted.
+  const [media, setMedia] = useState([])   // [{ id, url, type, mime, name, dur, bytes }]
+  const [uploading, setUploading] = useState(false)
+  const [recording, setRecording] = useState(false)
+  const recRef = useRef(null)               // { mr, chunks, stream, t0 }
+  const fileRef = useRef(null)
   // Known identity: the yQuran shell's member card (framed) or the reader's own
-  // signed-in account (standalone). When present, the name field disappears and
-  // comments attribute automatically.
+  // signed-in account (standalone). When present, the name field disappears.
   const framed = isFramed()
   const [shellUser, setShellUserS] = useState(() => getShellUser())
   useEffect(() => {
@@ -57,21 +71,68 @@ export default function Comments({ surah, ayah = 0, onCount }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surah, ayah])
 
+  // Upload picked files (image / audio / video / pdf), staging each ref.
+  async function onFiles(files) {
+    const arr = [...(files || [])].slice(0, 6 - media.length)
+    if (!arr.length) return
+    setUploading(true); setErr(null)
+    try {
+      for (const f of arr) {
+        const ref = await uploadContrib(surah, ayah, f, { name: f.name })
+        setMedia((m) => [...m, ref])
+      }
+    } catch { setErr(t('uploadError') || 'Upload failed') }
+    setUploading(false)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  // Record a voice note (MediaRecorder → upload on stop).
+  async function toggleRecord() {
+    if (recording) {
+      try { recRef.current?.mr?.stop() } catch { /* already stopped */ }
+      return
+    }
+    setErr(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mime = ['audio/mp4', 'audio/webm'].find((m) => window.MediaRecorder?.isTypeSupported?.(m)) || ''
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
+      const chunks = []
+      recRef.current = { mr, stream, t0: Date.now() }
+      mr.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data) }
+      mr.onstop = async () => {
+        setRecording(false)
+        stream.getTracks().forEach((tr) => tr.stop())
+        const dur = (Date.now() - recRef.current.t0) / 1000
+        const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' })
+        if (blob.size < 400) return // empty
+        setUploading(true)
+        try {
+          const ref = await uploadContrib(surah, ayah, blob, { name: `voice-${Math.round(dur)}s`, dur })
+          setMedia((m) => [...m, ref])
+        } catch { setErr(t('uploadError') || 'Upload failed') }
+        setUploading(false)
+      }
+      mr.start()
+      setRecording(true)
+    } catch { setErr(t('micDenied') || 'Microphone unavailable') }
+  }
+
+  function removeMedia(i) { setMedia((m) => m.filter((_, j) => j !== i)) }
+
   async function submit(e) {
     e.preventDefault()
     const body = text.trim()
-    if (!body || busy) return
+    if ((!body && media.length === 0) || busy || uploading || recording) return
     setBusy(true); setErr(null)
     try {
       const postName = (knownName || name).trim()
-      const c = await postComment(surah, ayah, postName, body)
-      if (!knownName) localStorage.setItem('jq.commentName', postName)
+      const c = await postComment(surah, ayah, postName, body, media)
+      if (!knownName && postName) localStorage.setItem('jq.commentName', postName)
       setList((l) => { const next = [...(l || []), c]; onCount?.(next.length); return next })
-      setText('')
+      setText(''); setMedia([])
       taRef.current?.focus()
-    } catch (e2) {
-      setErr(t('commentError'))
-    }
+    } catch { setErr(t('commentError')) }
     setBusy(false)
   }
 
@@ -91,7 +152,10 @@ export default function Comments({ surah, ayah = 0, onCount }) {
                 {c.verified && <span className="jq-comment-badge" title={t('verified')}>✔︎</span>}
                 <span className="jq-comment-time">{ago(c.at, t)}</span>
               </div>
-              <p className="jq-comment-text" dir="auto">{c.text}</p>
+              {c.text && <p className="jq-comment-text" dir="auto">{c.text}</p>}
+              {Array.isArray(c.media) && c.media.length > 0 && (
+                <div className="jq-cmedia-wrap">{c.media.map((m, i) => <Media key={m.url || i} m={m} />)}</div>
+              )}
             </li>
           ))}
         </ul>
@@ -121,10 +185,38 @@ export default function Comments({ surah, ayah = 0, onCount }) {
           dir="auto"
           aria-label={t('addComment')}
         />
+
+        {/* Staged attachments — preview + remove before posting. */}
+        {media.length > 0 && (
+          <div className="jq-cmedia-drafts">
+            {media.map((m, i) => (
+              <span key={i} className={`jq-cdraft jq-cdraft-${m.type}`}>
+                {m.type === 'image' ? '🖼' : m.type === 'audio' ? '🎙' : m.type === 'video' ? '🎬' : '📎'}
+                <span className="jq-cdraft-name">{m.name || m.type}</span>
+                <button type="button" className="jq-cdraft-x" onClick={() => removeMedia(i)} aria-label={t('remove') || 'Remove'}>✕</button>
+              </span>
+            ))}
+          </div>
+        )}
+
         {err && <div className="jq-comment-err">⚠︎ {err}</div>}
-        <button className="jq-chip active jq-comment-post" type="submit" disabled={busy || !text.trim()}>
-          {busy ? t('posting') : t('post')}
-        </button>
+
+        <div className="jq-comment-actions">
+          {/* Attach any media / file, and record a voice note. */}
+          <input ref={fileRef} type="file" accept="image/*,audio/*,video/*,application/pdf" multiple
+            style={{ display: 'none' }} onChange={(e) => onFiles(e.target.files)} />
+          <button type="button" className="jq-chip jq-cm-attach" disabled={uploading || media.length >= 6}
+            onClick={() => fileRef.current?.click()} title={t('attachMedia') || 'Attach photo / video / file'}>📎</button>
+          <button type="button" className={`jq-chip jq-cm-rec${recording ? ' on' : ''}`} disabled={uploading}
+            onClick={toggleRecord} title={recording ? (t('stopRecording') || 'Stop') : (t('recordVoice') || 'Record voice')}>
+            {recording ? '■' : '🎙'}
+          </button>
+          {uploading && <span className="jq-cm-uploading">{t('uploading') || 'Uploading…'}</span>}
+          <button className="jq-chip active jq-comment-post" type="submit"
+            disabled={busy || uploading || recording || (!text.trim() && media.length === 0)}>
+            {busy ? t('posting') : t('post')}
+          </button>
+        </div>
       </form>
     </div>
   )

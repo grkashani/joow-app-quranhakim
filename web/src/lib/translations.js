@@ -2,6 +2,12 @@
 // English + Persian live in i18n.jsx; missing keys/languages fall back to English.
 export const MORE = {
   "ar": {
+    "slowShort": "بطيء",
+    "normalShort": "عادي",
+    "fastShort": "سريع",
+    "slow": "بطيء",
+    "normal": "عادي",
+    "fast": "سريع",
     "appName": "قرآن حكيم",
     "appTagline": "ترجمة وتفسير بازركان، مع تلاوة آية بآية",
     "searchSurah": "ابحث عن سورة (بالاسم أو الرقم)…",
@@ -70,6 +76,12 @@ export const MORE = {
     "done": "تم"
   },
   "tr": {
+    "slowShort": "Yavaş",
+    "normalShort": "Norm",
+    "fastShort": "Hızlı",
+    "slow": "Yavaş",
+    "normal": "Normal",
+    "fast": "Hızlı",
     "appName": "Quran Hakim",
     "appTagline": "Bazergan meali ve tefsiri, ayet ayet tilavet",
     "searchSurah": "Sure ara (ad veya numara)…",
@@ -138,6 +150,12 @@ export const MORE = {
     "done": "Bitti"
   },
   "ur": {
+    "slowShort": "آہستہ",
+    "normalShort": "عام",
+    "fastShort": "تیز",
+    "slow": "آہستہ",
+    "normal": "عام",
+    "fast": "تیز",
     "appName": "قرآن حکیم",
     "appTagline": "بازرگان ترجمہ و تفسیر، آیت بہ آیت تلاوت",
     "searchSurah": "سورہ تلاش کریں (نام یا نمبر)…",
@@ -206,6 +224,12 @@ export const MORE = {
     "done": "مکمل"
   },
   "id": {
+    "slowShort": "Pelan",
+    "normalShort": "Norm",
+    "fastShort": "Cepat",
+    "slow": "Lambat",
+    "normal": "Normal",
+    "fast": "Cepat",
     "appName": "Quran Hakim",
     "appTagline": "Terjemahan dan tafsir Bazargan, bacaan ayat demi ayat",
     "searchSurah": "Cari surah (nama atau nomor)…",
@@ -274,6 +298,12 @@ export const MORE = {
     "done": "Selesai"
   },
   "ms": {
+    "slowShort": "Lambat",
+    "normalShort": "Biasa",
+    "fastShort": "Laju",
+    "slow": "Perlahan",
+    "normal": "Biasa",
+    "fast": "Laju",
     "appName": "Quran Hakim",
     "appTagline": "Terjemahan dan tafsir Bazargan, bacaan ayat demi ayat",
     "searchSurah": "Cari surah (nama atau nombor)…",
@@ -342,6 +372,12 @@ export const MORE = {
     "done": "Selesai"
   },
   "fr": {
+    "slowShort": "Lent",
+    "normalShort": "Norm",
+    "fastShort": "Vite",
+    "slow": "Lent",
+    "normal": "Normale",
+    "fast": "Rapide",
     "appName": "Quran Hakim",
     "appTagline": "Traduction et tafsir de Bazargan, récitation verset par verset",
     "searchSurah": "Rechercher une sourate (nom ou numéro)…",
@@ -410,6 +446,12 @@ export const MORE = {
     "done": "Terminé"
   },
   "es": {
+    "slowShort": "Lento",
+    "normalShort": "Norm",
+    "fastShort": "Veloz",
+    "slow": "Lento",
+    "normal": "Normal",
+    "fast": "Rápido",
     "appName": "Quran Hakim",
     "appTagline": "Traducción y tafsir de Bazargan, recitación aleya por aleya",
     "searchSurah": "Buscar sura (nombre o número)…",
@@ -478,6 +520,12 @@ export const MORE = {
     "done": "Listo"
   },
   "de": {
+    "slowShort": "Langs.",
+    "normalShort": "Norm.",
+    "fastShort": "Schn.",
+    "slow": "Langsam",
+    "normal": "Normal",
+    "fast": "Schnell",
     "appName": "Quran Hakim",
     "appTagline": "Bazargan-Übersetzung und Tafsir, Vers-für-Vers-Rezitation",
     "searchSurah": "Sure suchen (Name oder Nummer)…",
@@ -546,6 +594,12 @@ export const MORE = {
     "done": "Fertig"
   },
   "ru": {
+    "slowShort": "Медл.",
+    "normalShort": "Норм.",
+    "fastShort": "Быстр.",
+    "slow": "Медленно",
+    "normal": "Обычно",
+    "fast": "Быстро",
     "appName": "Коран Хаким",
     "appTagline": "Перевод и тафсир Базаргана, чтение аят за аятом",
     "searchSurah": "Поиск суры (название или номер)…",
@@ -614,6 +668,12 @@ export const MORE = {
     "done": "Готово"
   },
   "hi": {
+    "slowShort": "धीमा",
+    "normalShort": "मध्यम",
+    "fastShort": "तेज़",
+    "slow": "धीमा",
+    "normal": "सामान्य",
+    "fast": "तेज़",
     "appName": "क़ुरआन हकीम",
     "appTagline": "बाज़रगान अनुवाद और तफ़सीर, आयत-दर-आयत तिलावत",
     "searchSurah": "सूरह खोजें (नाम या संख्या)…",
@@ -682,6 +742,12 @@ export const MORE = {
     "done": "हो गया"
   },
   "bn": {
+    "slowShort": "ধীর",
+    "normalShort": "মাঝারি",
+    "fastShort": "দ্রুত",
+    "slow": "ধীর",
+    "normal": "স্বাভাবিক",
+    "fast": "দ্রুত",
     "appName": "কুরআন হাকিম",
     "appTagline": "বাজারগান অনুবাদ ও তাফসির, আয়াতভিত্তিক তিলাওয়াত",
     "searchSurah": "সূরা খুঁজুন (নাম বা নম্বর)…",
@@ -750,6 +816,12 @@ export const MORE = {
     "done": "সম্পন্ন"
   },
   "sw": {
+    "slowShort": "Pole",
+    "normalShort": "Kaw.",
+    "fastShort": "Kasi",
+    "slow": "Polepole",
+    "normal": "Kawaida",
+    "fast": "Haraka",
     "appName": "Quran Hakim",
     "appTagline": "Tafsiri na tafsiri ya Bazargan, kisomo aya kwa aya",
     "searchSurah": "Tafuta sura (jina au namba)…",

@@ -25,6 +25,9 @@ const fmt = (s) => {
 
 export default function Player({
   audioRef,
+  idle = false,   // docked but nothing playing yet (embed only): ▶ starts playback
+  embed = false,  // embed player is permanently docked — no ✕ (nothing to close)
+  onPlay,
   busy,
   paused,
   speed,
@@ -33,6 +36,7 @@ export default function Player({
   onPrevAyah,
   onNextAyah,
   onSeekBy,
+  onScrub,
   onStop,
   canPrev,
   canNext,
@@ -68,6 +72,9 @@ export default function Player({
   const seek = (v) => {
     const el = audioRef.current
     if (el && isFinite(v)) { el.currentTime = v; setCur(v) }
+    // Drive the reader's karaoke + scroll straight off the drag value, so they
+    // track the thumb instantly even before the audio finishes seeking.
+    if (isFinite(v)) onScrub?.(v)
   }
 
   return (
@@ -90,26 +97,35 @@ export default function Player({
 
       <div className="jq-pl-row">
         <button className="jq-pl-btn" onClick={onPrevAyah} disabled={!canPrev} aria-label={t('prevAyah')} title={t('prevAyah')}>⏮</button>
-        <button className="jq-pl-btn" onClick={() => onSeekBy(-10)} aria-label={t('back10')} title={t('back10')}>⏪</button>
-        <button className="jq-pl-btn jq-pl-play" onClick={onTogglePause} aria-label={paused ? t('play') : t('pause')} title={paused ? t('play') : t('pause')}>
-          {busy ? '…' : paused ? '▶' : '❚❚'}
+        <button className="jq-pl-btn" onClick={() => onSeekBy(-10)} disabled={idle} aria-label={t('back10')} title={t('back10')}>⏪</button>
+        <button className="jq-pl-btn jq-pl-play" onClick={idle ? onPlay : onTogglePause} aria-label={idle || paused ? t('play') : t('pause')} title={idle || paused ? t('play') : t('pause')}>
+          {busy ? '…' : (idle || paused) ? '▶' : '❚❚'}
         </button>
-        <button className="jq-pl-btn" onClick={() => onSeekBy(10)} aria-label={t('forward10')} title={t('forward10')}>⏩</button>
+        <button className="jq-pl-btn" onClick={() => onSeekBy(10)} disabled={idle} aria-label={t('forward10')} title={t('forward10')}>⏩</button>
         <button className="jq-pl-btn" onClick={onNextAyah} disabled={!canNext} aria-label={t('nextAyah')} title={t('nextAyah')}>⏭</button>
         {/* Karaoke follow: lights up (and pulses) after a manual scroll — one tap
             glides back to the word being read. Follow also auto-resumes a few
-            seconds after the last touch. */}
-        <button
-          className={`jq-pl-btn jq-pl-follow${following ? '' : ' off'}`}
-          onClick={onRecenter}
-          aria-label={t('followReading')}
-          title={t('followReading')}
-        >
-          ◎
-        </button>
+            seconds after the last touch. Hidden until playback begins. */}
+        {!idle && (
+          <button
+            className={`jq-pl-btn jq-pl-follow${following ? '' : ' off'}`}
+            onClick={onRecenter}
+            aria-label={t('followReading')}
+            title={t('followReading')}
+          >
+            ◎
+          </button>
+        )}
         <span className="jq-pl-title">{title}</span>
-        <button className="jq-pl-speed" onClick={onCycleSpeed} aria-label={t('speed')}>{speed}×</button>
-        <button className="jq-pl-x" onClick={onStop} aria-label={t('stop')}>✕</button>
+        {/* Three named steps (slow/normal/fast) — the speed is silence editing,
+            not a rate multiplier, so a word says it better than a number. The
+            player bar is tight, so the ABBREVIATED forms are used here. */}
+        <button className="jq-pl-speed" onClick={onCycleSpeed} aria-label={t('speed')} title={t('speed')}>
+          {speed < 1 ? t('slowShort') : speed > 1 ? t('fastShort') : t('normalShort')}
+        </button>
+        {/* ✕ stops+hides the player; pointless when idle, and the embed player is
+            always docked so it has nothing to close. */}
+        {!idle && !embed && <button className="jq-pl-x" onClick={onStop} aria-label={t('stop')}>✕</button>}
       </div>
     </div>
   )

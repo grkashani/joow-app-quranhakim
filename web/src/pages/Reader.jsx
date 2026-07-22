@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { loadSurah, recitationAudioUrl, tafsirAudioUrl, shortTafsirAudioUrl, getReciter, AUDIO_BASE } from '../lib/data.js'
+import { shareAyah, ayahEmbedUrl } from '../lib/shareAyah.js'
+import { loadSurah, recitationAudioUrl, tafsirAudioUrl, shortTafsirAudioUrl, getReciter, setReciter, loadReciters, AUDIO_BASE } from '../lib/data.js'
 import { getDedicatedTafsir, getDedicatedShortTafsir } from '../lib/tafsir.js'
 import { getCached, setCached, getServerTranscript } from '../lib/transcribe.js'
 import { getTtsUrl } from '../lib/tts.js'
@@ -16,9 +17,11 @@ import { getMeaningUrl } from '../lib/meaning.js'
 import { fetchCommentCounts } from '../lib/comments.js'
 import Comments from '../components/Comments.jsx'
 import Player from '../components/Player.jsx'
+import EmbedControls from '../components/EmbedControls.jsx'
 import { useI18n, LANGUAGES, dirOf } from '../lib/i18n.jsx'
-import { getReaderSettings, READER_SETTINGS_EVENT } from '../lib/settings.js'
+import { getReaderSettings, READER_SETTINGS_EVENT, setMeaningLang, setTafsirMode, setReciteArabic, MEANING_LANGS } from '../lib/settings.js'
 import * as activity from '../lib/activity.js'
+import { buildGaps, gapMeta, gapTick, speechRate } from '../lib/gapSpeed.js'
 
 // ---- Word-timing sidecars ----
 // Each generated TTS clip ships a sidecar next to it: for `X.mp3` the per-word
@@ -159,8 +162,12 @@ function renderMeaning(text) {
 
 export default function Reader() {
   const { t } = useI18n()
-  const { num } = useParams()
+  const { num, ayah: ayahParam } = useParams()
   const surahNum = Number(num)
+  // Single-ayah EMBED mode: the /ayah/:num/:ayah route renders just that one
+  // ayah with the full player (the shareable unit mounted inside a Social post).
+  const focusAyah = ayahParam != null && ayahParam !== '' ? Number(ayahParam) : null
+  const embed = focusAyah != null
   const [surah, setSurah] = useState(null)
   const [error, setError] = useState(null)
 
@@ -174,7 +181,7 @@ export default function Reader() {
   // Reader settings (single meaning language + two toggles). Live-updates while
   // the Settings drawer is open via the settings event.
   const [settings, setSettings] = useState(getReaderSettings)
-  const { meaningLang, reciteArabic, tafsirMode, readAnnotations, farsiOriginal } = settings
+  const { meaningLang, reciteArabic, tafsirMode, readAnnotations } = settings
   const settingsRef = useRef(settings)
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => {
@@ -183,6 +190,48 @@ export default function Reader() {
     return () => window.removeEventListener(READER_SETTINGS_EVENT, h)
   }, [])
   const mDir = dirOf(meaningLang)
+
+  // Embed controls: viewers pick the reciter (recitation voice) right on the
+  // shared card. `reciter` mirrors the persisted choice so the <select> tracks
+  // it; the next recitation resolves the newly chosen voice.
+  const [reciters, setReciters] = useState([])
+  const [reciter, setReciterLocal] = useState(getReciter)
+  useEffect(() => {
+    if (!embed) return
+    loadReciters().then(setReciters).catch(() => {})
+  }, [embed])
+
+  // Embed auto-height: report the natural content height to the host (yQuran feed)
+  // so the post card sizes to its content — small for a bare ayah, taller as the
+  // tafsir grows — instead of a fixed frame with dead space. The host clamps it to
+  // a fraction of the screen and scrolls inside past that. Re-reports on any
+  // reflow (settings change, tafsir text arriving, font/lang swap).
+  useEffect(() => {
+    if (!embed || typeof window === 'undefined' || window.parent === window) return
+    let raf = 0
+    const post = () => {
+      raf = 0
+      const h = Math.max(
+        document.documentElement.scrollHeight,
+        document.body ? document.body.scrollHeight : 0,
+      )
+      if (h > 0) window.parent.postMessage({ type: 'joow:embed-height', height: h }, '*')
+    }
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(post) }
+    schedule()
+    const ro = new ResizeObserver(schedule)
+    if (document.body) ro.observe(document.body)
+    window.addEventListener('resize', schedule)
+    window.addEventListener('load', schedule)
+    const t = setTimeout(schedule, 400) // catch async tafsir text / fonts settling
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('load', schedule)
+      if (raf) cancelAnimationFrame(raf)
+      clearTimeout(t)
+    }
+  }, [embed])
 
   // Tafsir transcript text keyed `${mode}:${lang}:${ayah}` -> { text } | { error } | { note }.
   // `mode` (long|short) is in the key so switching Tafsir mode shows the right transcript.
@@ -193,6 +242,7 @@ export default function Reader() {
   // Comments: counts per ayah (0 = surah-level); which thread is open.
   const [commentCounts, setCommentCounts] = useState({})
   const [openComments, setOpenComments] = useState(null)
+  const [shareNote, setShareNote] = useState(null) // transient "shared / copied" toast
 
   // ---- Playback state ----
   // cursor = { n, si, kind } — the ayah + step currently being read (null = idle).
@@ -218,16 +268,36 @@ export default function Reader() {
   // right-to-left under a "Persian" label for the transition window.
   const [activeLang, setActiveLang] = useState(null)
 
-  // Playback speed (persisted; live-applied to the shared audio element).
-  const [speed, setSpeed] = useState(() => Number(localStorage.getItem('jq.speed')) || 1)
+  // Playback speed (persisted). Speed is applied as SILENCE EDITING, never as a
+  // rate change on the speech: when the clip has word timings (karaoke sidecar)
+  // we keep playbackRate at 1 and the rAF tick trims/stretches the known gaps
+  // (see lib/gapSpeed.js) — the voice's tone and delivery are untouched. Only a
+  // clip with NO sidecar falls back to playbackRate (pitch-preserved).
+  const [speed, setSpeed] = useState(() => {
+    const v = Number(localStorage.getItem('jq.speed'))
+    return v === 0.75 || v === 1.5 ? v : 1 // three steps: slow / normal / fast
+  })
   const speedRef = useRef(speed)
+  // Apply the right mechanism for the current clip: sidecar known-absent ->
+  // legacy rate (with pitch preserved); sidecar present or still loading ->
+  // a ≤10% imperceptible rate nudge (gap editing does the rest of the speed).
+  // Safe to call at any time.
+  const applySpeed = useCallback(() => {
+    const el = audioRef.current
+    if (!el) return
+    try { el.preservesPitch = true; el.webkitPreservesPitch = true } catch { /* older engines */ }
+    el.playbackRate = syncRef.current.sidecarNone ? speedRef.current : speechRate(speedRef.current)
+  }, [])
+  // Stable handle for effects that must not add deps (the live-swap effect).
+  const applySpeedRef = useRef(applySpeed)
+  useEffect(() => { applySpeedRef.current = applySpeed }, [applySpeed])
   useEffect(() => {
     speedRef.current = speed
     localStorage.setItem('jq.speed', String(speed))
-    if (audioRef.current) audioRef.current.playbackRate = speed
-  }, [speed])
+    applySpeed()
+  }, [speed, applySpeed])
   const cycleSpeed = useCallback(() => {
-    const S = [0.75, 1, 1.5]
+    const S = [1, 1.5, 0.75] // normal -> fast -> slow -> normal
     setSpeed((cur) => S[(S.indexOf(cur) + 1) % S.length])
   }, [])
 
@@ -238,7 +308,12 @@ export default function Reader() {
   // non-React state driven by a single rAF loop (word highlight + smooth scroll).
   const activeBlockRef = useRef(null)
   const autoScrollRef = useRef(true)
-  const syncRef = useRef({ els: [], timings: [], lastIdx: -1, raf: 0, curY: 0, hasWords: false })
+  // gaps/gapMeta/stretched/pendingSeeks/sidecarNone drive the gap-based speed
+  // engine (lib/gapSpeed.js): known silence windows, the speech/silence budget,
+  // which gaps this pass has already lengthened, the TARGETS of engine seeks
+  // still awaiting their `seeked` (so onSeeked can tell our seeks from a user's
+  // by position), and whether the clip has no word sidecar (-> rate fallback).
+  const syncRef = useRef({ els: [], timings: [], lastIdx: -1, raf: 0, curY: 0, hasWords: false, gaps: [], gapMeta: null, stretched: new Set(), pendingSeeks: [], sidecarNone: false })
   // Mirror of autoScrollRef for the UI (the player's follow button lights up
   // while the user has scrolled away). setFollow keeps ref + state in sync.
   const [following, setFollowing] = useState(true)
@@ -246,7 +321,10 @@ export default function Reader() {
   // Re-arm the follow a few seconds after the LAST hand gesture (the video-
   // review ask: "if I scroll and don't touch for a couple of seconds, resume").
   const followResumeRef = useRef(0)
-  const FOLLOW_RESUME_MS = 7000
+  // The shared-ayah embed is a focused "watch this ayah" card — re-follow quickly
+  // after an incidental feed-scroll over it. The full reader is a long document you
+  // browse, so it waits longer before yanking back to the playhead.
+  const FOLLOW_RESUME_MS = embed ? 2500 : 7000
   const reduceMotionRef = useRef(false)
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -306,6 +384,13 @@ export default function Reader() {
       const dt = el.currentTime - (s.heardT ?? el.currentTime)
       if (dt > 0 && dt < 2) activity.addHeard(dt, el.duration)
       s.heardT = el.currentTime
+    }
+    // Gap-based speed: trim (fast) or replay (slow) known silences by seeking.
+    // The speech itself always plays at 1.0x. Re-baseline heardT after our own
+    // seek so the skipped/replayed silence never counts as heard time.
+    {
+      const moved = gapTick(el, s, speedRef.current)
+      if (moved != null) s.heardT = moved
     }
     if (s.hasWords) paintWord(idxAt(el.currentTime))
     if (autoScrollRef.current) {
@@ -377,11 +462,11 @@ export default function Reader() {
       // In Farsi "Original" mode the recording plays even without a transcript —
       // so the honest note is the reverse of the default (audio works, text is
       // still being prepared), not "audio arrives soon".
-      const note = t(farsiOriginal && meaningLang === 'fa' ? 'originalNoText' : 'ttsUnavailable')
+      const note = t(meaningLang === 'fa' ? 'originalNoText' : 'ttsUnavailable')
       setTafsirText((m) => ({ ...m, [k]: err?.status === 503 ? { note } : { error: String(err.message || err) } }))
     }
     inflight.current.delete(k)
-  }, [activeTafsir, tafsirMode, meaningLang, surahNum, farsiOriginal, t])
+  }, [activeTafsir, tafsirMode, meaningLang, surahNum, t])
 
   useEffect(() => {
     // Both LONG and SHORT tafsir have a transcript (short summary is STT'd too),
@@ -416,7 +501,12 @@ export default function Reader() {
     const s = settingsRef.current
     if (kind === 'recite') return recitationAudioUrl(surahNum, n)
     if (kind === 'meaning') return getMeaningUrl(surahNum, n, s.meaningLang, s.readAnnotations)
-    if (s.farsiOriginal && s.meaningLang === 'fa') {
+    // Farsi ALWAYS plays Abdolali Bazargan's own recording (owner: "whenever it
+    // is Farsi, since we have all the audio from Bazargan, play the original").
+    // His human recordings cover the WHOLE Qur'an; the AI narration only exists
+    // for a few surahs — so for Persian this is both the intended voice and the
+    // only path with full coverage. No opt-in flag: Persian ⇒ Bazargan.
+    if (s.meaningLang === 'fa') {
       return s.tafsirMode === 'short' ? shortTafsirAudioUrl(surahNum, n) : tafsirAudioUrl(surahNum, n)
     }
     // tafsir (long lecture or short summary) — one unified AI-TTS pipeline.
@@ -443,6 +533,7 @@ export default function Reader() {
     const el = audioRef.current
     if (!el || !surah) return
     if (n > surah.ayahs.length) { stop(); return } // reached the end -> clean stop
+    if (embed && focusAyah != null && n > focusAyah) { stop(); return } // embed = ONE ayah only
     const kinds = stepKinds()
     if (si >= kinds.length) { playStep(n + 1, 0); return } // this ayah done -> next ayah
     const kind = kinds[si]
@@ -454,7 +545,10 @@ export default function Reader() {
       const url = await resolveUrl(kind, n)
       if (myRun !== runIdRef.current) return // cancelled while resolving
       el.src = url
-      el.playbackRate = speedRef.current
+      // Fresh clip: assume a sidecar until the fetch below says otherwise, so
+      // the speech starts at its natural rate (gap editing will do the speed).
+      { const s = syncRef.current; s.sidecarNone = false; s.gaps = []; s.gapMeta = null; s.stretched = new Set(); s.pendingSeeks = [] }
+      applySpeed()
       {
         const st = settingsRef.current
         activity.stepStarted({
@@ -474,7 +568,13 @@ export default function Reader() {
       // Recitation timings live in their own tree (community data keyed by
       // reciter); TTS clips carry their sidecar next to the mp3.
       loadWords(url, kind === 'recite' ? recitationWordsUrl(surahNum, n) : undefined)
-        .then((w) => { if (activeUrlRef.current === url) setActiveWords(w) })
+        .then((w) => {
+          if (activeUrlRef.current !== url) return
+          setActiveWords(w)
+          // No sidecar -> this clip's speed falls back to (pitch-preserved) rate.
+          syncRef.current.sidecarNone = !w
+          applySpeed()
+        })
       await el.play()
       if (myRun !== runIdRef.current) { el.pause(); return }
       setBusy(false)
@@ -491,7 +591,7 @@ export default function Reader() {
         setPlayErr({ n, si, msg: t('audioLoadError') })
       }
     }
-  }, [surah, stepKinds, resolveUrl, stop, t])
+  }, [surah, stepKinds, resolveUrl, stop, t, applySpeed, embed, focusAyah])
 
   // onEnded must call the LATEST playStep closure (settings may have changed).
   const playStepRef = useRef(playStep)
@@ -507,23 +607,22 @@ export default function Reader() {
   const resolveUrlRef = useRef(resolveUrl)
   useEffect(() => { resolveUrlRef.current = resolveUrl }, [resolveUrl])
   const swapIdRef = useRef(0)
-  const prevSwapKeyRef = useRef(`${meaningLang}|${tafsirMode}|${readAnnotations}|${farsiOriginal}`)
+  const prevSwapKeyRef = useRef(`${meaningLang}|${tafsirMode}|${readAnnotations}`)
   useEffect(() => {
-    const key = `${meaningLang}|${tafsirMode}|${readAnnotations}|${farsiOriginal}`
+    const key = `${meaningLang}|${tafsirMode}|${readAnnotations}`
     const prev = prevSwapKeyRef.current
     if (prev === key) return
-    const [pLang, pMode, pAnn, pOrig] = prev.split('|')
+    const [pLang, pMode, pAnn] = prev.split('|')
     prevSwapKeyRef.current = key
     const langChanged = pLang !== meaningLang
     const modeChanged = pMode !== tafsirMode
     const annChanged = pAnn !== String(readAnnotations)
-    const origChanged = pOrig !== String(farsiOriginal)
     const c = cursorRef.current
     const el = audioRef.current
     if (!c || !el || !el.src) return
     if (c.kind === 'recite') return
     if (c.kind === 'meaning' && !(langChanged || annChanged)) return
-    if (c.kind === 'tafsir' && !(langChanged || modeChanged || origChanged)) return
+    if (c.kind === 'tafsir' && !(langChanged || modeChanged)) return
     // Tafsir switched OFF while a tafsir step is playing -> glide to the next ayah.
     // Pause first so the old clip can't fire onEnded and double-advance.
     if (c.kind === 'tafsir' && tafsirMode !== 'long' && tafsirMode !== 'short') {
@@ -570,9 +669,15 @@ export default function Reader() {
         activeUrlRef.current = url
         setActiveWords(null)
         setActiveLang(settingsRef.current.meaningLang)
-        loadWords(url).then((w) => { if (activeUrlRef.current === url) setActiveWords(w) })
+        loadWords(url).then((w) => {
+          if (activeUrlRef.current !== url) return
+          setActiveWords(w)
+          syncRef.current.sidecarNone = !w
+          applySpeedRef.current()
+        })
         el.src = url
-        el.playbackRate = speedRef.current
+        { const s = syncRef.current; s.sidecarNone = false; s.gaps = []; s.gapMeta = null; s.stretched = new Set(); s.pendingSeeks = [] }
+        applySpeedRef.current()
         {
           const st = settingsRef.current
           activity.stepStarted({
@@ -620,7 +725,7 @@ export default function Reader() {
         }
       }
     })()
-  }, [meaningLang, tafsirMode, readAnnotations, farsiOriginal, t])
+  }, [meaningLang, tafsirMode, readAnnotations, t])
 
   // Advance by KIND, not by raw index: settings toggles (e.g. "Recite Arabic
   // first") can change the step list mid-ayah, so "si + 1" against a freshly
@@ -679,24 +784,51 @@ export default function Reader() {
     if (el.paused) { setFollow(true); el.play().catch(() => {}) } else el.pause()
   }, [])
 
+  // Snap the page so the CURRENTLY-highlighted word (or the whole block, when a
+  // clip has no word timings) sits in the stable zone — instantly, no lerp. Used
+  // while scrubbing so the reading tracks the playhead exactly, even when paused.
+  const scrollToActiveWord = useCallback(() => {
+    const s = syncRef.current
+    const anchor = (s.hasWords && s.lastIdx >= 0 && s.els[s.lastIdx]) ? s.els[s.lastIdx] : activeBlockRef.current
+    const y = targetYFor(anchor)
+    if (y != null) { s.curY = y; window.scrollTo(0, y) }
+  }, [targetYFor])
+  // A user-driven seek (scrubber / ±10s / word-tap) is an explicit "take me
+  // here": re-arm follow and carry the karaoke + scroll to the playhead.
+  const followPlayhead = useCallback(() => { setFollow(true); scrollToActiveWord() }, [setFollow, scrollToActiveWord])
+  // Carry the reader to a target TIME immediately — highlight the word at `time`
+  // and scroll to it — driven by the scrub value itself, NOT the audio's `seeked`
+  // event. That keeps the karaoke + scroll glued to the slider even while the
+  // audio is still fetching an unbuffered position (and even while paused).
+  const carryTo = useCallback((time) => {
+    if (!isFinite(time)) return
+    setFollow(true)
+    const s = syncRef.current
+    if (s.hasWords) paintWord(idxAt(time))
+    scrollToActiveWord()
+  }, [setFollow, paintWord, idxAt, scrollToActiveWord])
+
   // Two-way sync: tapping a word seeks the current clip to that word's start and
   // re-arms auto-scroll (resuming playback if we were paused).
   const seekToWord = useCallback((s) => {
     const el = audioRef.current
     if (!el || !isFinite(s)) return
-    setFollow(true)
     el.currentTime = s
+    carryTo(s)
     if (el.paused) el.play().catch(() => {})
-  }, [])
+  }, [carryTo])
 
   // Player transport: nudge the current clip by ±seconds (clamped).
   const seekBy = useCallback((delta) => {
     const el = audioRef.current
     if (!el || !el.src) return
-    setFollow(true)
     const d = isFinite(el.duration) ? el.duration : Infinity
     el.currentTime = Math.max(0, Math.min(d - 0.05, el.currentTime + delta))
-  }, [])
+    carryTo(el.currentTime)
+  }, [carryTo])
+  // The scrubber drives this on every drag movement: move the karaoke + scroll to
+  // the dragged-to time instantly (independent of audio buffering).
+  const onScrub = useCallback((time) => carryTo(time), [carryTo])
 
   // Player transport: previous / next AYAH — restart the read-along at that ayah
   // with the current settings (recite→meaning→tafsir from step 0).
@@ -720,12 +852,32 @@ export default function Reader() {
     playStepRef.current(n, si)
   }, [playErr])
 
+  // Share ONE ayah as an interactive post (framed → yQuran; standalone → link).
+  const doShareAyah = useCallback(async (n) => {
+    const res = await shareAyah(surahNum, n, {
+      lang: meaningLang,
+      surahName: surah?.nameEn || surah?.nameFa,
+      ayahLabel: t('ayah'), playLabel: t('shareAyah'),
+    })
+    const msg = res === 'shared-to-yquran' ? (t('sharedToYquran') || 'Shared to yQuran')
+      : res === 'copied' ? (t('linkCopied') || 'Link copied')
+      : res === 'shared' ? (t('shared') || 'Shared')
+      : (t('shareFailed') || 'Could not share')
+    setShareNote(msg)
+    clearTimeout(doShareAyah._t)
+    doShareAyah._t = setTimeout(() => setShareNote(null), 2400)
+  }, [surahNum, meaningLang, t, surah])
+
   // A hand gesture (wheel / touch-drag / scroll key) means "let me look around" —
   // suspend the stable-zone auto-scroll. Play, a word-tap or a transport action
   // re-arm it. These fire ONLY on real user input, never on our programmatic
   // window.scrollTo, so there's no feedback loop to debounce.
   useEffect(() => {
-    const off = () => {
+    const off = (e) => {
+      // Interacting with the transport bar (dragging the scrubber, tapping ±10s)
+      // is an explicit "move me here", NOT a browse-away gesture — it must never
+      // disable follow, or the screen would stop tracking the scrub.
+      if (e && e.target && e.target.closest && e.target.closest('.jq-player')) return
       setFollow(false)
       // Idle-resume: a few quiet seconds after the LAST gesture, glide back to
       // the reading — but only while a clip is actually playing (play itself
@@ -737,7 +889,7 @@ export default function Reader() {
       }, FOLLOW_RESUME_MS)
     }
     const scrollKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar'])
-    const onKey = (e) => { if (scrollKeys.has(e.key)) off() }
+    const onKey = (e) => { if (scrollKeys.has(e.key)) off(e) }
     window.addEventListener('wheel', off, { passive: true })
     window.addEventListener('touchmove', off, { passive: true })
     window.addEventListener('keydown', onKey)
@@ -758,10 +910,36 @@ export default function Reader() {
     const onPlay = () => { setFollow(true); startLoop() }
     // Heard-seconds accounting lives in the rAF `tick` loop (reliable inside the
     // embedded iframe); a seek just re-baselines it so the jump isn't counted.
-    const onSeeked = () => { syncRef.current.heardT = el.currentTime; const s = syncRef.current; if (s.hasWords) paintWord(idxAt(el.currentTime)); if (el.paused) tick() }
+    const onSeeked = () => {
+      const s = syncRef.current
+      const cur = el.currentTime
+      s.heardT = cur
+      // Attribute this `seeked` by position. If it matches the oldest pending
+      // engine-seek target, it's ours — consume it. Otherwise it's a genuine
+      // USER seek (scrub, ±5s, word-tap): drop stale engine targets and re-arm
+      // slow-mode stretches for gaps AT/AFTER the landing so a replayed passage
+      // paces the same way again (gaps already behind us stay consumed).
+      const pi = s.pendingSeeks.findIndex((to) => Math.abs(cur - to) < 0.25)
+      if (pi !== -1) {
+        // Our own engine seek (gap trim/replay): just repaint, don't touch follow.
+        s.pendingSeeks.splice(0, pi + 1)
+        if (s.hasWords) paintWord(idxAt(cur))
+        if (el.paused) tick()
+        return
+      }
+      // A genuine USER seek (scrubber / ±10s / word-tap): re-arm slow-mode
+      // stretches from here, then CARRY the reader to the playhead — highlight
+      // the word and scroll to it, whether playing or paused.
+      s.pendingSeeks.length = 0
+      for (const gi of [...s.stretched]) { const g = s.gaps[gi]; if (g && g.e >= cur - 0.05) s.stretched.delete(gi) }
+      if (s.hasWords) paintWord(idxAt(cur))
+      followPlayhead()
+    }
     const onTime = () => {
       const s = syncRef.current
-      if (el.paused && s.hasWords) paintWord(idxAt(el.currentTime))
+      // While paused (e.g. mid-scrub), keep the highlight and scroll on the
+      // playhead too — some browsers fire `timeupdate` more often than `seeked`.
+      if (el.paused && s.hasWords) { paintWord(idxAt(el.currentTime)); if (autoScrollRef.current) scrollToActiveWord() }
     }
     el.addEventListener('play', onPlay)
     el.addEventListener('seeked', onSeeked)
@@ -772,7 +950,7 @@ export default function Reader() {
       el.removeEventListener('timeupdate', onTime)
       stopLoop()
     }
-  }, [startLoop, stopLoop, paintWord, idxAt, tick, setFollow])
+  }, [startLoop, stopLoop, paintWord, idxAt, tick, setFollow, followPlayhead, scrollToActiveWord])
 
   // Backgrounding throttles/freezes rAF and (on some platforms) pauses the
   // audio; coming back could leave a dead loop, a stale scroll baseline and a
@@ -799,6 +977,28 @@ export default function Reader() {
     }
   }, [paintWord, idxAt, startLoop])
 
+  // Karaoke stability watchdog (owner: "when the voice is playing, always check the
+  // karaoke too — make it more stable"). The rAF loop is efficient but stops itself
+  // the instant ONE frame observes the audio paused (a buffering stall, an engine
+  // gap-seek, a step swap), and it is throttled — or fully suspended — whenever the
+  // embed iframe scrolls out of the feed's viewport (browsers throttle rAF in
+  // offscreen cross-origin frames). In both cases the highlight can freeze while the
+  // voice plays on, and NO play/visibility event fires to recover it because the tab
+  // never lost focus. This cheap timer is the safety net: while audio is genuinely
+  // playing it re-arms a dead loop and snaps the highlight back onto the playhead —
+  // in the Social embed AND the standalone mini-app (one shared component).
+  useEffect(() => {
+    const id = setInterval(() => {
+      const el = audioRef.current
+      const s = syncRef.current
+      if (!el || el.paused || el.ended || !cursorRef.current) return
+      if (!isFinite(el.currentTime)) return
+      if (!s.raf) startLoop()                            // loop died while playing → restart it
+      if (s.hasWords) paintWord(idxAt(el.currentTime))   // resync the highlight (throttle/drift/freeze)
+    }, 500)
+    return () => clearInterval(id)
+  }, [startLoop, paintWord, idxAt])
+
   // When the active block or its word timings change, (re)index the word spans
   // for the sync loop and place the block in the stable zone. While playing the
   // rAF loop does the continuous scroll; while paused we do a one-shot smooth
@@ -812,8 +1012,14 @@ export default function Reader() {
       s.els = els
       s.timings = els.map((e) => ({ s: parseFloat(e.dataset.s), e: parseFloat(e.dataset.e) }))
       s.hasWords = els.length > 0
+      // Silence map + speech/silence budget for the gap-based speed engine
+      // (fresh pass, nothing stretched yet).
+      s.gaps = buildGaps(activeWords.words, activeWords.dur)
+      s.gapMeta = gapMeta(s.gaps, activeWords.dur)
+      s.stretched = new Set(); s.pendingSeeks = []
     } else {
       s.els = []; s.timings = []; s.hasWords = false
+      s.gaps = []; s.gapMeta = null; s.stretched = new Set(); s.pendingSeeks = []
     }
     const el = audioRef.current
     if (!el || !cursor) return
@@ -840,34 +1046,55 @@ export default function Reader() {
   const langLabel = LANGUAGES.find((l) => l.code === playingLang)?.name || playingLang.toUpperCase()
   const karaokeDir = dirOf(playingLang)
   const playerTitle = active
-    ? `${stepLabel(cursor.kind)}${cursor.kind === 'meaning' || cursor.kind === 'tafsir' ? ` · ${langLabel}` : ''} · ${t('ayah')} ${cursor.n}`
+    // The embed header already names the ayah, so the player just shows the step
+    // (+ language). The full reader keeps "· Ayah N" — it tracks position as the
+    // read-along moves through the surah.
+    ? `${stepLabel(cursor.kind)}${cursor.kind === 'meaning' || cursor.kind === 'tafsir' ? ` · ${langLabel}` : ''}${embed ? '' : ` · ${t('ayah')} ${cursor.n}`}`
     : ''
 
   return (
     // `jq-focus` while reading dims the non-active ayahs (focus mode) so the eye
     // can't lose its place during a long tafsir.
-    <div className={`jq-shell jq-reader${active ? ' has-player jq-focus' : ''}`}>
+    <div className={`jq-shell jq-reader${active ? ' has-player jq-focus' : ''}${embed ? ' jq-reader-embed' : ''}`}>
       <header className="jq-reader-bar">
-        <Link className="jq-back" to="/surah">‹ {t('back')}</Link>
-        {/* THE single surah play/stop control. Reads through the whole surah using
-            the current settings, auto-scrolling and highlighting as it goes. */}
-        <button
-          className={`jq-play jq-reader-play${active ? ' on' : ''}`}
-          aria-label={active ? t('stop') : t('playFull')}
-          aria-busy={busy}
-          title={active ? t('stop') : t('playFull')}
-          onClick={toggleSurah}
-        >
-          {active ? (busy ? '…' : '■') : '▶'}
-        </button>
+        {!embed && (
+          <>
+            <Link className="jq-back" to="/surah">‹ {t('back')}</Link>
+            {/* THE single surah play/stop control. Reads through the whole surah using
+                the current settings, auto-scrolling and highlighting as it goes.
+                (The embed has no header play button — its player is always docked
+                at the bottom.) */}
+            <button
+              className={`jq-play jq-reader-play${active ? ' on' : ''}`}
+              aria-label={active ? t('stop') : t('playFull')}
+              aria-busy={busy}
+              title={active ? t('stop') : t('playFull')}
+              onClick={toggleSurah}
+            >
+              {active ? (busy ? '…' : '■') : '▶'}
+            </button>
+          </>
+        )}
         <div className="jq-reader-title">
-          <span className="jq-reader-fa">{t('surah')} {surah.nameFa}</span>
-          <span className="jq-reader-en">{surah.nameEn} · {surah.ayahs.length} {t('ayahs')}</span>
+          {/* Embed shows just the ayah identity (surah name + ayah number) — no
+              "Surah" prefix; the shared unit is the ayah. */}
+          <span className="jq-reader-fa">{embed ? `${surah.nameFa} · ${t('ayah')} ${focusAyah}` : `${t('surah')} ${surah.nameFa}`}</span>
+          <span className="jq-reader-en">{surah.nameEn}{embed ? '' : ` · ${surah.ayahs.length} ${t('ayahs')}`}</span>
         </div>
+        {embed && (
+          <EmbedControls
+            meaningLang={meaningLang} onLang={setMeaningLang} langs={MEANING_LANGS}
+            tafsirMode={tafsirMode} onTafsir={setTafsirMode}
+            reciters={reciters} reciter={reciter}
+            onReciter={(id) => { setReciter(id); setReciterLocal(id) }}
+            reciteArabic={reciteArabic} onReciteArabic={setReciteArabic}
+          />
+        )}
       </header>
 
       {/* Honest "audio being prepared" note, or a retryable load error — never a
           raw provider error, never a dead end. */}
+      {shareNote && <div className="jq-listen-note" role="status">{shareNote}</div>}
       {note && <div className="jq-listen-note">{note}</div>}
       {playErr && (
         <div className="jq-listen-note jq-listen-err" role="alert">
@@ -877,12 +1104,12 @@ export default function Reader() {
       )}
 
       {/* Static basmala line for surahs whose ayah 1 is not itself the basmala. */}
-      {surahNum !== 1 && surahNum !== 9 && (
+      {!embed && surahNum !== 1 && surahNum !== 9 && (
         <div className="jq-basmala jq-basmala-static">بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ</div>
       )}
 
       <ol className="jq-ayahs">
-        {surah.ayahs.map((a) => {
+        {(embed ? surah.ayahs.filter((a) => a.n === focusAyah) : surah.ayahs).map((a) => {
           const isCur = cursor?.n === a.n
           const readKind = isCur ? cursor.kind : null
           const meaning = meaningOf(a, meaningLang)
@@ -895,16 +1122,23 @@ export default function Reader() {
               className={`jq-ayah${isCur ? ' playing' : ''}`}
               onClick={() => startAt(a.n)}
             >
-              <div className="jq-ayah-head">
-                <span className="jq-ayah-num">{a.n}</span>
-                <button
-                  className={`jq-chip jq-cm-btn${openComments === a.n ? ' active' : ''}`}
-                  aria-label={`${t('comments')} ${a.n}`}
-                  onClick={(e) => { e.stopPropagation(); setOpenComments(openComments === a.n ? null : a.n) }}
-                >
-                  💬{commentCounts[a.n] ? ` ${commentCounts[a.n]}` : ''}
-                </button>
-              </div>
+              {/* Ayah head — full reader only. It carries the number badge + the
+                  share-to-social chip. The per-ayah 💬 comment icon was removed
+                  everywhere (owner: "remove the comment icon, keep the Comments
+                  section, I like this style") — commenting lives in the collapsible
+                  "Comments on this surah" section below. The embed drops this whole
+                  row to reclaim the wasted height. */}
+              {!embed && (
+                <div className="jq-ayah-head">
+                  <span className="jq-ayah-num">{a.n}</span>
+                  <button
+                    className="jq-chip jq-share-btn"
+                    aria-label={`${t('shareAyah') || 'Share ayah'} ${a.n}`}
+                    title={t('shareAyah') || 'Share ayah'}
+                    onClick={(e) => { e.stopPropagation(); doShareAyah(a.n) }}
+                  >↗</button>
+                </div>
+              )}
 
               <p
                 ref={readKind === 'recite' ? activeBlockRef : null}
@@ -930,7 +1164,8 @@ export default function Reader() {
                   {readKind === 'meaning' && activeWords
                     ? <KaraokeText words={activeWords.words} onSeekWord={seekToWord} />
                     : (readAnnotations ? renderMeaning(meaning) : meaningForDisplay(meaning, false))}
-                  {' '}<span className="jq-tr-num">{meaningMarker(a.n, meaningLang)}</span>
+                  {/* No verse number on the translation — the Arabic ﴿N﴾ marker just
+                      above already carries it (owner: don't repeat the ayah number). */}
                 </p>
               )}
 
@@ -981,14 +1216,25 @@ export default function Reader() {
         )}
       </section>
 
-      <nav className="jq-surah-nav">
-        {surahNum > 1 && <Link className="jq-chip" to={`/surah/${surahNum - 1}`}>‹ {t('prevSurah')}</Link>}
-        {surahNum < 114 && <Link className="jq-chip" to={`/surah/${surahNum + 1}`}>{t('nextSurah')} ›</Link>}
-      </nav>
+      {/* Surah prev/next belongs to the full reader only — a single-ayah embed
+          has nowhere to navigate. */}
+      {!embed && (
+        <nav className="jq-surah-nav">
+          {surahNum > 1 && <Link className="jq-chip" to={`/surah/${surahNum - 1}`}>‹ {t('prevSurah')}</Link>}
+          {surahNum < 114 && <Link className="jq-chip" to={`/surah/${surahNum + 1}`}>{t('nextSurah')} ›</Link>}
+        </nav>
+      )}
 
-      {active && (
+      {/* The embed player is ALWAYS docked at the bottom (owner: "always show
+          player at bottom, remove the top-left play button"). When nothing is
+          playing it renders idle — the ▶ starts THIS ayah. The full reader keeps
+          the on-demand player. */}
+      {(active || embed) && (
         <Player
           audioRef={audioRef}
+          idle={!active}
+          embed={embed}
+          onPlay={() => startAt(focusAyah)}
           busy={busy}
           paused={paused}
           speed={speed}
@@ -997,10 +1243,11 @@ export default function Reader() {
           onPrevAyah={prevAyah}
           onNextAyah={nextAyah}
           onSeekBy={seekBy}
+          onScrub={onScrub}
           onStop={stop}
-          canPrev={cursor.n > 1}
-          canNext={cursor.n < surah.ayahs.length}
-          title={playerTitle}
+          canPrev={active && !embed ? cursor.n > 1 : false}
+          canNext={active && !embed ? cursor.n < surah.ayahs.length : false}
+          title={active ? playerTitle : ''}
           following={following}
           onRecenter={recenter}
         />

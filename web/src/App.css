@@ -1088,3 +1088,95 @@
 
 .jq-drawer-back { color: var(--jq-accent); font-weight: 700; }
 .jq-drawer-back .jq-drawer-row-label { color: inherit; }
+
+/* ── Single-ayah share + embed ─────────────────────────────────────────────
+   .jq-embed: the reader mounted inside a yQuran Social post (one ayah, no
+   app chrome). .jq-share-btn: the ↗ chip on every ayah head. */
+.jq-share-btn { margin-inline-start: 4px; }
+.jq-embed .jq-main { padding: 0; }
+.jq-embed { min-height: 100%; }
+.jq-reader-embed .jq-reader-bar { position: sticky; top: 0; z-index: 5; background: var(--joow-surface, #fff); }
+.jq-embed-open {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 34px; text-decoration: none; font-size: 17px; opacity: .6; color: inherit;
+}
+.jq-embed-open:hover { opacity: 1; }
+
+/* ── Rich-media comments (attachments + voice) ───────────────────────────── */
+.jq-comment-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.jq-cm-attach, .jq-cm-rec { font-size: 16px; padding: 6px 12px; }
+.jq-cm-rec.on { background: #c0392b; color: #fff; animation: jq-pulse 1s ease-in-out infinite; }
+@keyframes jq-pulse { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
+.jq-cm-uploading { font-size: 12px; opacity: .7; }
+.jq-comment-post { margin-inline-start: auto; }
+.jq-cmedia-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.jq-cmedia-img { max-width: 220px; max-height: 260px; border-radius: 10px; object-fit: cover; }
+.jq-cmedia-video { max-width: 280px; max-height: 320px; border-radius: 10px; background: #000; }
+.jq-cmedia-audio { width: 240px; height: 38px; }
+.jq-cmedia-file { display: inline-block; padding: 8px 12px; background: rgba(127,127,127,.12); border-radius: 10px; text-decoration: none; font-size: 13px; }
+.jq-cmedia-drafts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.jq-cdraft { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: rgba(21,128,61,.12); font-size: 12px; max-width: 200px; }
+.jq-cdraft-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+.jq-cdraft-x { border: 0; background: transparent; cursor: pointer; font-size: 12px; opacity: .7; padding: 0 2px; }
+.jq-cdraft-x:hover { opacity: 1; }
+
+/* Embed header icon controls — language / tafsir / more, kept on the header's
+   first row (no stacked dropdown row). Each icon overlays an invisible native
+   <select> so a tap opens the OS picker. */
+.jq-embed-icons { display: flex; align-items: center; gap: 2px; margin-inline-start: auto; }
+.jq-ic {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+  border: 0; background: transparent; color: inherit; padding: 0;
+}
+.jq-ic:hover { background: rgba(127,127,127,.12); }
+.jq-ic.on { background: rgba(21,128,61,.14); }
+.jq-ic.dim { opacity: .5; }
+.jq-ic-glyph { font-size: 17px; line-height: 1; }
+.jq-ic-badge {
+  position: absolute; bottom: 0; inset-inline-end: -1px;
+  font-size: 8px; font-weight: 700; letter-spacing: .02em;
+  padding: 0 3px; min-width: 12px; text-align: center; border-radius: 6px; line-height: 1.55;
+  background: var(--brand, #15803d); color: #fff;
+}
+/* native <select> laid transparently over the icon */
+.jq-ic > select {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  opacity: 0; cursor: pointer; border: 0; -webkit-appearance: none; appearance: none;
+}
+.jq-ic:focus-within { outline: 2px solid var(--brand, #15803d); outline-offset: 1px; }
+.jq-ic-btn:focus-visible { outline: 2px solid var(--brand, #15803d); outline-offset: 1px; }
+
+/* ⚙ more-settings popover (reciter voice + Arabic recitation toggle) */
+.jq-ic-more { position: relative; display: inline-flex; }
+.jq-ic-panel {
+  position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 30;
+  min-width: 210px; padding: 12px; border-radius: 12px;
+  background: var(--joow-surface, #fff); border: 1px solid rgba(127,127,127,.2);
+  box-shadow: 0 12px 34px rgba(17,24,39,.18);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.jq-ic-field { display: flex; flex-direction: column; gap: 4px; }
+.jq-ic-field > span, .jq-ic-toggle-row > span {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .55;
+}
+.jq-ic-field > select {
+  font-size: 13px; padding: 7px 8px; border-radius: 8px;
+  border: 1px solid rgba(127,127,127,.3); background: transparent; color: inherit; cursor: pointer;
+}
+.jq-ic-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.jq-ic-toggle-row > input { width: 18px; height: 18px; accent-color: var(--brand, #15803d); cursor: pointer; }
+
+/* Header title reads calmer in the shared card — Surah name + ayah number are
+   labels here, not a heading, so drop the heavy weight. */
+.jq-reader-embed .jq-reader-fa { font-weight: 500; }
+.jq-reader-embed .jq-reader-en { font-weight: 400; }
+
+/* The embed hides the TabBar, so the player must sit flush at the card's bottom
+   (the standalone reader offsets it 62px to clear that bar). */
+.jq-reader-embed .jq-player { bottom: 0; }
+/* Clear the trailing content from the always-docked embed player (77px tall).
+   The player is position:fixed so it needs container padding — put it on the shell
+   (overriding its 48px) so it applies idle too, not only when `.has-player` is set
+   during playback. Kept snug so a short ayah has no dead space above the player. */
+.jq-reader-embed { padding-bottom: 90px; }

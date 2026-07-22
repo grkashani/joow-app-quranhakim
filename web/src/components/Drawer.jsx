@@ -6,7 +6,6 @@ import {
   getReciteArabic, setReciteArabic,
   getTafsirMode, setTafsirMode,
   getReadAnnotations, setReadAnnotations,
-  getFarsiOriginal, setFarsiOriginal,
 } from '../lib/settings.js'
 import { loadReciters, getReciter, setReciter } from '../lib/data.js'
 import { isFramed, getShellUser, SHELL_USER_EVENT, postToShell } from '../lib/framed.js'
@@ -28,7 +27,6 @@ export default function Drawer({ open, onClose }) {
   const [reciteArabic, setReciteArabicS] = useState(getReciteArabic)
   const [tafsirMode, setTafsirModeS] = useState(getTafsirMode)
   const [readAnnotations, setReadAnnotationsS] = useState(getReadAnnotations)
-  const [farsiOriginal, setFarsiOriginalS] = useState(getFarsiOriginal)
   // Framed: the signed-in member's identity (from the yQuran shell) — shown as a
   // small header here so the avatar lives in the menu instead of the top bar.
   const [shellUser, setShellUser] = useState(() => getShellUser())
@@ -44,7 +42,7 @@ export default function Drawer({ open, onClose }) {
   useEffect(() => {
     if (!open) return
     setMeaningLangS(getMeaningLang()); setReciteArabicS(getReciteArabic()); setTafsirModeS(getTafsirMode())
-    setReadAnnotationsS(getReadAnnotations()); setFarsiOriginalS(getFarsiOriginal())
+    setReadAnnotationsS(getReadAnnotations())
   }, [open])
 
   const chooseTheme = (v) => { setTheme(v); setThemeS(v) }
@@ -54,7 +52,6 @@ export default function Drawer({ open, onClose }) {
   const chooseRecite = (on) => setReciteArabicS(setReciteArabic(on))
   const chooseTafsir = (m) => setTafsirModeS(setTafsirMode(m))
   const chooseAnnotations = (on) => setReadAnnotationsS(setReadAnnotations(on))
-  const chooseFarsiOriginal = (on) => setFarsiOriginalS(setFarsiOriginal(on))
 
   async function share() {
     try {
@@ -178,20 +175,9 @@ export default function Drawer({ open, onClose }) {
           </div>
         </div>
 
-        {/* Tafsir voice — Original (human recording) vs AI (ElevenLabs). For
-            Persian, "Original" is Abdolali Bazargan's OWN recorded lessons
-            (short + long), which cover the whole Qur'an; "AI" is the synthesized
-            narration. Only shown where an original human recording exists (fa). */}
-        {meaningLang === 'fa' && (
-          <div className="jq-drawer-section">
-            <div className="jq-section-title">{t('tafsirVoice')}</div>
-            <div className="jq-controls">
-              <button className={`jq-chip${farsiOriginal ? ' active' : ''}`} aria-pressed={farsiOriginal} onClick={() => chooseFarsiOriginal(true)}>{t('voiceOriginal')}</button>
-              <button className={`jq-chip${!farsiOriginal ? ' active' : ''}`} aria-pressed={!farsiOriginal} onClick={() => chooseFarsiOriginal(false)}>{t('voiceAI')}</button>
-            </div>
-            <div className="jq-section-hint jq-muted">{t('tafsirVoiceHint')}</div>
-          </div>
-        )}
+        {/* Persian tafsir ALWAYS plays Abdolali Bazargan's own recording (his
+            lessons cover the whole Qur'an; the AI narration only exists for a few
+            surahs), so there is no Original/AI voice choice to offer for Farsi. */}
 
         {/* Read translator insertions: include the clarifying [..]/(..) words the
             translator added, in both the spoken audio and the shown text. */}

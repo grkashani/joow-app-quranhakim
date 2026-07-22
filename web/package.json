@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "format:check": "prettier --check .",
     "format:write": "prettier --write ."
   },
@@ -23,7 +25,6 @@
     ]
   },
   "dependencies": {
-    "@joow/sdk": "file:./vendor/joow-sdk",
     "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor/android": "^8.4.2",
     "@capacitor/core": "^8.4.2",
@@ -33,6 +34,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@capgo/capacitor-social-login": "^8.3.37",
     "@huggingface/transformers": "^4.2.0",
+    "@joow/sdk": "file:./vendor/joow-sdk",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-router-dom": "6.20.0"
@@ -42,7 +44,9 @@
     "@types/react": "18.2.37",
     "@types/react-dom": "18.2.15",
     "@vitejs/plugin-react-swc": "3.6.0",
+    "jsdom": "^29.1.1",
     "prettier": "3.3.3",
-    "vite": "5.0.7"
+    "vite": "5.0.7",
+    "vitest": "^2.1.9"
   }
 }
