@@ -70,7 +70,8 @@ jobs:
           sbom: true
           build-args: |
             VITE_AUDIO_BASE=
-            VITE_JOOW_HOST_ORIGIN=https://stage.joow.org
+            # plan-001: empty => referrer-derived shell origin; one image serves joow.org, stage, and every verified community domain (shell.js resolveHostOrigin)
+            VITE_JOOW_HOST_ORIGIN=
           tags: ${{ env.IMAGE }}:stage-${{ github.event.workflow_run.head_sha }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}

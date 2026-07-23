@@ -40,7 +40,10 @@ function resolveHostOrigin() {
   // The shell document that loaded this iframe is our referrer; its origin is
   // the host origin. (Set VITE_JOOW_HOST_ORIGIN explicitly if the shell sends
   // no referrer, e.g. under a strict Referrer-Policy: no-referrer.)
-  return originOf(typeof document !== 'undefined' ? document.referrer : '')
+  const ref = originOf(typeof document !== 'undefined' ? document.referrer : '')
+  if (ref && ref.startsWith('https://')) return ref
+  if (ref && import.meta.env.DEV) return ref
+  return ''
 }
 
 // Canonical signals.v4 Appearance → the reader's {theme, lang, dir}.
